@@ -28,8 +28,7 @@ pub fn kmain(_: int, _: **u8) -> int {
     vga::clear(vga::Black);
 
     // Dump out the old faithful hello world!
-    // \todo Can we do this without having to pass in a static size??
-    vga::write("Hello, world!", 13, 0, 0, vga::White, vga::Black);
+    vga::write("Hello, world!", 0, 0, vga::White, vga::Black);
 
     0
 }

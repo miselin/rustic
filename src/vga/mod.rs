@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use zero;
+
 pub enum Colour {
     Black       = 0,
     Blue        = 1,
@@ -33,43 +35,60 @@ pub enum Colour {
     White       = 15,
 }
 
+static COLS: uint = 80;
+static ROWS: uint = 25;
+
+static VGABASE: uint = 0xB8000;
+
 #[fixed_stack_segment]
 pub fn clear(colour: Colour) {
     let mut offset = 0;
-    let max = 80 * 25 * 2;
+    let field: u16 = ' ' as u16 | (colour as u16 << 12);
+    let max = ROWS * COLS * 2;
     loop {
         if offset >= max { break; }
         unsafe {
-            *((0xb8000 + offset) as *mut u8) = ' ' as u8;
-            *((0xb8001 + offset) as *mut u8) = colour as u8 << 4;
+            *((VGABASE + offset) as *mut u16) = field;
         }
         offset += 2;
     }
 }
 
 #[fixed_stack_segment]
-pub fn write(s: &str, l: uint, x: int, y: int, fg: Colour, bg: Colour) {
+pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
     let mut offset = (y * 80) + x;
     let mut index = 0;
 
+    let buflen =
+    unsafe {
+        let (_, slen): (*u8, uint) = zero::transmute(s);
+        slen
+    };
+
+    let attr = (bg as u8 << 4) | (fg as u8);
+
     loop {
-        if index >= l { break; }
+        if index >= buflen { break; }
+
         let c = s[index] as char;
         if(c == '\n') {
-            offset += 80;
+            offset += COLS;
         } else if(c == '\r') {
-            offset -= offset % 80;
+            offset -= offset % COLS;
         } else if(c == '\t') {
             offset += 4;
         } else if(c == '\0') {
             break;
         } else {
             unsafe {
-                *((0xb8000 + (offset * 2)) as *mut u8) = s[index];
-                *((0xb8001 + (offset * 2)) as *mut u8) = (bg as u8 << 4) | (fg as u8);
+                *((VGABASE + (offset * 2)) as *mut u16) = (s[index] as u16) | (attr as u16 << 8);
             }
             offset = offset + 1;
-            if(offset > (80 * 25)) { break; }
+
+            if(offset > (ROWS * COLS)) {
+                // TODO: scroll!
+                break;
+            }
         }
         index = index + 1;
     }
