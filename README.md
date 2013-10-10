@@ -10,15 +10,18 @@ It currently simply writes some text to the screen and loops forever.
 
 ## Build Configuration
 
-Create a file 'config.mk' in the root directory of the repository.
+Create a file `config.mk` in the root directory of the repository.
 
-Set `RUST_ROOT`, `LLVM_ROOT`, and `GCC_PREFIX` in this directory to:
-`RUST_ROOT`: directory containing `bin/rustc`
-`LLVM_ROOT`: directory containing `bin/clang`
-`GCC_PREFIX`: prefix for GCC commands (eg, `/usr/bin/`)
+Set `RUST_ROOT`, `LLVM_ROOT`, and `GCC_PREFIX` in this file to:
+* `RUST_ROOT`: directory containing `bin/rustc`
+* `LLVM_ROOT`: directory containing `bin/clang`
+* `GCC_PREFIX`: prefix for GCC commands (eg, `/usr/bin/`)
 
-`GCC_PREFIX` is prefixed to `ld`, so if you are using a cross-compiler
+`GCC_PREFIX` is prefixed to `ld` and `gcc`, so if you are using a cross-compiler
 use the full name, eg `/usr/bin/i686-linux-elf-`.
+
+If `config.mk` is not found, `/bin/rustc`, `/bin/clang`, `/usr/bin/ld`,
+and `/usr/bin/gcc` will be used automatically.
 
 If your system uses `genisoimage` instead of `mkisofs`, set the `MKISOFS`
 variable to that as well.
