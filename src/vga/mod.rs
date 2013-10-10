@@ -72,7 +72,9 @@ pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
 
         let c = s[index] as char;
         if(c == '\n') {
+            // \n implies \r
             offset += COLS;
+            offset -= offset % COLS;
         } else if(c == '\r') {
             offset -= offset % COLS;
         } else if(c == '\t') {
