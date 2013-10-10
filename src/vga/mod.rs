@@ -79,6 +79,7 @@ pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
             offset -= offset % COLS;
         } else if(c == '\t') {
             offset += 4;
+            offset -= offset % 4;
         } else if(c == '\0') {
             break;
         } else {
