@@ -16,7 +16,7 @@ RC := $(RUST_ROOT)/bin/rustc
 RCFLAGS := --opt-level=2 --target $(TARGET)
 
 LD := $(GCC_PREFIX)ld
-LDFLAGS := -nostdlib -Tsrc/linker.ld
+LDFLAGS := -nostdlib -m elf_i386 -Tsrc/linker.ld
 LIBS := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 AS := $(LLVM_ROOT)/bin/clang
