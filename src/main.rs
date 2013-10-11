@@ -29,6 +29,7 @@ pub fn kmain(_: int, _: **u8) -> int {
 
     // Dump out the old faithful hello world!
     vga::write("Hello, world!", 0, 0, vga::White, vga::Black);
+    vga::write("Hi\nThere\nA\tbcd\tef\tghi!", 0, 1, vga::Red, vga::Black);
 
     0
 }

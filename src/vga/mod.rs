@@ -41,12 +41,12 @@ static ROWS: uint = 25;
 static VGABASE: uint = 0xB8000;
 
 #[fixed_stack_segment]
-pub fn clear(colour: Colour) {
-    let mut offset = 0;
-    let field: u16 = ' ' as u16 | (colour as u16 << 12);
+pub fn fill(with: char, colour: Colour) {
+    let field: u16 = with as u16 | (colour as u16 << 12);
     let max = ROWS * COLS * 2;
-    loop {
-        if offset >= max { break; }
+
+    let mut offset = 0;
+    while offset < max {
         unsafe {
             *((VGABASE + offset) as *mut u16) = field;
         }
@@ -55,45 +55,51 @@ pub fn clear(colour: Colour) {
 }
 
 #[fixed_stack_segment]
-pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
-    let mut offset = (y * 80) + x;
-    let mut index = 0;
+pub fn clear(colour: Colour) {
+    fill(' ', colour);
+}
 
-    let buflen =
-    unsafe {
+#[fixed_stack_segment]
+pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
+    // Pull out the buffer length from the str
+    let buflen = unsafe {
         let (_, slen): (*u8, uint) = zero::transmute(s);
         slen
     };
 
     let attr = (bg as u8 << 4) | (fg as u8);
 
-    loop {
-        if index >= buflen { break; }
+    let mut index = 0;
+    let mut offset = (y * 80) + x;
 
-        let c = s[index] as char;
-        if(c == '\n') {
-            // \n implies \r
-            offset += COLS;
-            offset -= offset % COLS;
-        } else if(c == '\r') {
-            offset -= offset % COLS;
-        } else if(c == '\t') {
-            offset += 4;
-            offset -= offset % 4;
-        } else if(c == '\0') {
-            break;
-        } else {
-            unsafe {
-                *((VGABASE + (offset * 2)) as *mut u16) = (s[index] as u16) | (attr as u16 << 8);
-            }
-            offset = offset + 1;
-
-            if(offset > (ROWS * COLS)) {
-                // TODO: scroll!
-                break;
+    while index < buflen {
+        match s[index] as char {
+            '\n' => {
+                offset += COLS;
+                offset -= offset % COLS;
+            },
+            '\r' => {
+                offset -= offset % COLS;
+            },
+            '\t' => {
+                offset += 4;
+                offset -= offset % 4;
+            },
+            _ => {
+                unsafe {
+                    let p: *mut u16 = (VGABASE + (offset * 2)) as *mut u16;
+                    *p = (s[index] as u16) | (attr as u16 << 8);
+                }
+                offset += 1;
             }
         }
-        index = index + 1;
+
+        if(offset > (ROWS * COLS)) {
+            // TODO: scroll!
+            break;
+        }
+
+        index += 1;
     }
 }
 
