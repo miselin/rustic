@@ -62,9 +62,8 @@ pub fn clear(colour: Colour) {
 #[fixed_stack_segment]
 pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
     // Pull out the buffer length from the str
-    let buflen = unsafe {
-        let (_, slen): (*u8, uint) = zero::transmute(s);
-        slen
+    let (_, buflen): (*u8, uint) = unsafe {
+        zero::transmute(s)
     };
 
     let attr = (bg as u8 << 4) | (fg as u8);
