@@ -3,6 +3,8 @@ RUST_ROOT :=
 LLVM_ROOT :=
 GCC_PREFIX := /usr/bin/
 
+MACHINE := elf_i386
+
 MKISOFS := mkisofs
 
 -include ./config.mk
@@ -16,7 +18,7 @@ RC := $(RUST_ROOT)/bin/rustc
 RCFLAGS := --opt-level=2 --target $(TARGET)
 
 LD := $(GCC_PREFIX)ld
-LDFLAGS := -nostdlib -m elf_i386 -Tsrc/linker.ld
+LDFLAGS := -nostdlib -m $(MACHINE) -Tsrc/linker.ld
 LIBS := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 AS := $(LLVM_ROOT)/bin/clang
