@@ -21,15 +21,29 @@ mod zero;
 // Pull in VGA utils - clear screen, write text, etc...
 mod vga;
 
+// Grab I/O for test.
+mod io;
+
+// Grab serial port I/O stuff.
+mod serial;
+
 #[start]
 #[fixed_stack_segment]
 pub fn kmain(_: int, _: **u8) -> int {
     // Clear to black.
     vga::clear(vga::Black);
 
-    // Dump out the old faithful hello world!
-    vga::write("Hello, world!", 0, 0, vga::White, vga::Black);
-    vga::write("Hi\nThere\nA\tbcd\tef\tghi!", 0, 1, vga::Red, vga::Black);
+    // Start up the serial port...
+    serial::config(115200, 8, serial::NoParity, 1);
+
+    // Dump some startup junk to the serial port.
+    serial::write("Rustic starting up...\n");
+
+    // Welcome message.
+    vga::write("Welcome to Rustic!", 0, 0, vga::LightGray, vga::Black);
+
+    // All done with initial startup.
+    serial::write("Rustic startup complete.\n");
 
     0
 }
