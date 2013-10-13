@@ -40,15 +40,15 @@ static SERIAL_BASE: u16 = 0x3F8;
 
 pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
     // Disable IRQs.
-    io::port::outport(SERIAL_BASE + Inten as u16, 0 as u8);
+    io::outport(SERIAL_BASE + Inten as u16, 0 as u8);
 
     // Enable DLAB to set the baud rate divisor.
-    io::port::outport(SERIAL_BASE + LCtrl as u16, 0x80 as u8);
+    io::outport(SERIAL_BASE + LCtrl as u16, 0x80 as u8);
 
     // Set the divisor for the given baud rate.
     let divisor = 115200 / baud;
-    io::port::outport(SERIAL_BASE + RxTx as u16, (divisor & 0xF) as u8);
-    io::port::outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
+    io::outport(SERIAL_BASE + RxTx as u16, (divisor & 0xF) as u8);
+    io::outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
 
     // Set data/stop bits and parity, which will also clear DLAB.
     let meta =
@@ -69,25 +69,25 @@ pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
             Space => 0b111000,
             _     => 0,
         };
-    io::port::outport(SERIAL_BASE + LCtrl as u16, meta as u8);
+    io::outport(SERIAL_BASE + LCtrl as u16, meta as u8);
 
     // Enable and clear the FIFO.
-    io::port::outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
+    io::outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
 
     // Set RTS/DSR, and enable IRQs for if/when INTEN == 1.
-    io::port::outport(SERIAL_BASE + MCtrl as u16, 0x0B as u8);
+    io::outport(SERIAL_BASE + MCtrl as u16, 0x0B as u8);
 }
 
 fn writechar(c: u8) {
     // Wait until we are permitted to write.
     loop {
-        let status: u8 = io::port::inport(SERIAL_BASE + LStat as u16);
+        let status: u8 = io::inport(SERIAL_BASE + LStat as u16);
         if (status & 0x20) != 0 {
             break;
         }
     }
 
-    io::port::outport(SERIAL_BASE + RxTx as u16, c);
+    io::outport(SERIAL_BASE + RxTx as u16, c);
 }
 
 pub fn write(s: &str) {
@@ -107,12 +107,12 @@ pub fn write(s: &str) {
 pub fn read() -> char {
     // Wait until bytes are pending in the FIFO.
     loop {
-        let status: u8 = io::port::inport(SERIAL_BASE + LStat as u16);
+        let status: u8 = io::inport(SERIAL_BASE + LStat as u16);
         if (status & 0x1) != 0 {
             break;
         }
     }
 
-    let result: u8 = io::port::inport(SERIAL_BASE + RxTx as u16);
+    let result: u8 = io::inport(SERIAL_BASE + RxTx as u16);
     result as char
 }

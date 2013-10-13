@@ -14,77 +14,32 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-// We can't use "a" or "d" as register constraints, otherwise we could
-// just use real generics for this. Instead, a trait keeps the magic
-// alive, in theory.
-pub trait port {
-    fn outport(port: u16, val: Self);
-    fn inport(port: u16) -> Self;
+trait ioval {
+    fn zero() -> Self;
 }
 
-impl port for u8 {
-    fn outport(port: u16, val: u8) {
-        unsafe {
-            asm!(" \
-                mov $0, %dx; \
-                mov $1, %al; \
-                outb %al, %dx" :: "r" (port), "r" (val) : "eax", "edx");
-        }
-    }
+impl ioval for u8 {
+    fn zero() -> u8 { 0 }
+}
 
-    fn inport(port: u16) -> u8 {
-        unsafe {
-            let mut val: u8 = 0;
-            asm!(" \
-                mov $1, %dx;
-                inb %dx, %al;
-                mov %al, $0" : "=r" (val) : "r" (port) : "eax", "edx");
-            val
-        }
+impl ioval for u16 {
+    fn zero() -> u16 { 0 }
+}
+
+impl ioval for u32 {
+    fn zero() -> u32 { 0 }
+}
+
+pub fn outport<T>(port: u16, val: T) {
+    unsafe {
+        asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
     }
 }
 
-impl port for u16 {
-    fn outport(port: u16, val: u16) {
-        unsafe {
-            asm!(" \
-                mov $0, %dx; \
-                mov $1, %ax; \
-                outw %ax, %dx" :: "r" (port), "r" (val) : "eax", "edx");
-        }
-    }
-
-    fn inport(port: u16) -> u16 {
-        unsafe {
-            let mut val: u16 = 0;
-            asm!(" \
-                mov $1, %dx;
-                inw %dx, %ax;
-                mov %ax, $0" : "=r" (val) : "r" (port) : "eax", "edx");
-            val
-        }
+pub fn inport<T: ioval>(port: u16) -> T {
+    unsafe {
+        let mut val: T = ioval::zero();
+        asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
+        val
     }
 }
-
-impl port for u32 {
-    fn outport(port: u16, val: u32) {
-        unsafe {
-            asm!(" \
-                mov $0, %dx; \
-                mov $1, %eax; \
-                outl %eax, %dx" :: "r" (port), "r" (val) : "eax", "edx");
-        }
-    }
-
-    fn inport(port: u16) -> u32 {
-        unsafe {
-            let mut val: u32 = 0;
-            asm!(" \
-                mov $1, %dx;
-                inl %dx, %eax;
-                mov %eax, $0" : "=r" (val) : "r" (port) : "eax", "edx");
-            val
-        }
-    }
-}
-
