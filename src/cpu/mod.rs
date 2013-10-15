@@ -15,7 +15,6 @@
  */
 
 mod gdt;
-mod idt;
 
 // External variable in assembly code (not actually a function)
 extern { fn tls_emul_segment(); }
