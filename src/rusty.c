@@ -39,6 +39,26 @@ void abort() {
     while(1) asm volatile("cli;hlt");
 }
 
+/**
+ * Ultra stupid malloc for quick testing (replace me with dlmalloc or write me
+ * in rust!)
+ */
+unsigned int base = 0x200000;
+void *malloc(unsigned int len) {
+    unsigned int ret = base;
+    base += len;
+
+    // Align next allocation to 4-byte boundary.
+    if(base % 4)
+        base += 4 - (base % 4);
+
+    return (void *) ret;
+}
+
+/// Even more naive free()
+void free(void *p) {
+}
+
 /// Entry point from the assembly code startup code.
 void _cstart() {
     main(0, 0);

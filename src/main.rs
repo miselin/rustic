@@ -27,6 +27,9 @@ mod io;
 // Grab serial port I/O stuff.
 mod serial;
 
+// Pull in CPU things.
+mod cpu;
+
 #[start]
 #[fixed_stack_segment]
 pub fn kmain(_: int, _: **u8) -> int {
@@ -38,6 +41,9 @@ pub fn kmain(_: int, _: **u8) -> int {
 
     // Dump some startup junk to the serial port.
     serial::write("Rustic starting up...\n");
+
+    // Get the CPU into a sane, known state.
+    cpu::init();
 
     // Welcome message.
     vga::write("Welcome to Rustic!", 0, 0, vga::LightGray, vga::Black);

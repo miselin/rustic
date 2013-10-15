@@ -33,7 +33,8 @@ stack_bottom:
 stack_top:
 
 .align 4
-tlsemul:
+.global tls_emul_segment
+tls_emul_segment:
 .skip 1024
 
 // Initial GDT, before we load the real one later.
@@ -84,7 +85,7 @@ _start:
     // Fix up GDTR and the TLS emulation segment.
     movl %edi, 2(%esi)
 
-    mov $tlsemul, %edx
+    mov $tls_emul_segment, %edx
     movw %dx, 26(%edi)
     shr $16, %edx
     movb %dl, 28(%edi)
