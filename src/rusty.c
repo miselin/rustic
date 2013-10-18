@@ -14,30 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-/// Rust entry point.
-extern int main(int, char **);
-
-/// Prototype for abort(), for the attribute.
-void abort() __attribute__((noreturn));
-
-/// Poke a byte into memory at the given address.
-void poke(unsigned int addr, unsigned char val) {
-    *((unsigned char *) addr) = val;
-}
-
-/// Read a byte from memory at the given address.
-unsigned char peek(unsigned int addr) {
-    return *((unsigned char *) addr);
-}
 
 /// Required by Rust. \todo Needs to be implemented!
-void __morestack() {
-}
-
-/// Required by zero.rs, and needs to be more noisy.
-void abort() {
-    while(1) asm volatile("cli;hlt");
-}
+void __morestack() {}
 
 /**
  * Ultra stupid malloc for quick testing (replace me with dlmalloc or write me
@@ -46,18 +25,37 @@ void abort() {
 unsigned int base = 0x200000;
 void *malloc(unsigned int len) {
     unsigned int ret = base;
-    base += len;
+    base += len + sizeof(unsigned int);
 
     // Align next allocation to 4-byte boundary.
     if(base % 4)
         base += 4 - (base % 4);
 
-    return (void *) ret;
+    *(unsigned int*)base = len;
+
+    return (void *)(ret + sizeof(unsigned int));
 }
 
-/// Even more naive free()
-void free(void *p) {
+/// Even more naive free().
+void free(void *p) {}
+
+// TODO(eddyb) reimplement these in Rust ASAP.
+void *memcpy(void *dst, const void *src, unsigned int count) {
+    unsigned char *d = dst;
+    const unsigned char *s = src;
+    while(count--)
+        *d++ = *s++;
+    return dst;
 }
+
+void *realloc(void *old, unsigned int len) {
+    void *new_mem = malloc(len);
+    memcpy(new_mem, old, *((unsigned int*)old - 1));
+    return new_mem;
+}
+
+/// Rust entry point.
+extern int main(int, char **);
 
 /// Entry point from the assembly code startup code.
 void _cstart() {
