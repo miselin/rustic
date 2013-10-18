@@ -61,36 +61,37 @@ impl gdtentry {
     }
 }
 
-impl table {
-    #[fixed_stack_segment]
-    pub fn init() -> table {
-        let table = unsafe { zero::malloc(128) } as *mut gdttable;
-        let reg = unsafe { zero::malloc(6) } as *mut gdtreg;
-        unsafe { *reg = gdtreg::new(table as *gdttable) };
+static mut systemgdt: table = table {
+    table: 0 as *mut gdttable,
+    reg: 0 as *mut gdtreg,
+};
 
-        table {
-            reg: reg,
-            table: table,
-        }
-    }
-
-    pub fn entry(&self, index: int, base: uint, limit: uint, access: u8, gran: u8) {
-        unsafe {
-            (*self.table)[index] = gdtentry::new(base, limit, access, gran);
-        }
-    }
-
-    pub fn load(&self, codeseg: u16, dataseg: u16, tlsemulseg: u16) {
-        unsafe { asm!(" \
-            lgdt ($0); \
-            jmp $1, $$.g; \
-            .g: \
-            mov $2, %ax; \
-            mov %ax, %ds; \
-            mov %ax, %es; \
-            mov %ax, %fs; \
-            mov %ax, %ss; \
-            mov $3, %ax; \
-            mov %ax, %gs;" :: "r" (self.reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
+#[fixed_stack_segment]
+pub fn init() {
+    unsafe {
+        systemgdt.table = zero::malloc(128) as *mut gdttable;
+        systemgdt.reg = zero::malloc(6) as *mut gdtreg;
+        *systemgdt.reg = gdtreg::new(systemgdt.table as *gdttable);
     }
 }
+
+pub fn load(codeseg: u16, dataseg: u16, tlsemulseg: u16) {
+    unsafe { asm!(" \
+        lgdt ($0); \
+        jmp $1, $$.g; \
+        .g: \
+        mov $2, %ax; \
+        mov %ax, %ds; \
+        mov %ax, %es; \
+        mov %ax, %fs; \
+        mov %ax, %ss; \
+        mov $3, %ax; \
+        mov %ax, %gs;" :: "r" (systemgdt.reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
+}
+
+pub fn entry(index: int, base: uint, limit: uint, access: u8, gran: u8) {
+    unsafe {
+        (*systemgdt.table)[index] = gdtentry::new(base, limit, access, gran);
+    }
+}
+
