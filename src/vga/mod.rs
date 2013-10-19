@@ -35,8 +35,8 @@ pub enum Colour {
     White       = 15,
 }
 
-static COLS: uint = 80;
-static ROWS: uint = 25;
+pub static COLS: uint = 80;
+pub static ROWS: uint = 25;
 
 static VGABASE: uint = 0xB8000;
 
