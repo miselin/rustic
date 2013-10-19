@@ -38,7 +38,7 @@ pub fn outport<T>(port: u16, val: T) {
 
 pub fn inport<T: ioval>(port: u16) -> T {
     unsafe {
-        let mut val: T = ioval::zero();
+        let mut val: T;
         asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
         val
     }
