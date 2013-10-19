@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use zero;
+use core;
+use core::intrinsics::size_of;
 
 type idttable = [idtentry, ..256];
 
@@ -57,7 +58,7 @@ impl idtreg {
     pub fn new(idt: *idttable) -> idtreg {
         idtreg {
             addr: idt,
-            limit: unsafe { zero::size_of::<idttable>() + 1 } as u16,
+            limit: (size_of::<idttable>() + 1) as u16,
         }
     }
 }
@@ -96,9 +97,9 @@ pub fn register(index: int, handler: extern "Rust" fn(n: uint)) {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemidt.table = zero::malloc(2048) as *mut idttable;
-        systemidt.reg = zero::malloc(6) as *mut idtreg;
-        systemidt.handlers = zero::malloc(2048) as *mut handlers;
+        systemidt.table = core::libc::malloc(2048) as *mut idttable;
+        systemidt.reg = core::libc::malloc(6) as *mut idtreg;
+        systemidt.handlers = core::libc::malloc(2048) as *mut handlers;
         *systemidt.reg = idtreg::new(systemidt.table as *idttable);
     }
 
