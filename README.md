@@ -6,7 +6,9 @@ writing as much of the system as possible in Rust.
 There are naturally components that are written in C and Assembly,
 including general runtime support for Rust itself.
 
-It currently simply writes some text to the screen and loops forever.
+It currently simply writes some text to the screen, displays a slow
+spinning status indicator in the bottom right corner, and echoes
+characters entered on the keyboard. Keyboard LEDs work too.
 
 ## Build Configuration
 
