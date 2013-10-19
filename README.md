@@ -12,6 +12,10 @@ characters entered on the keyboard. Keyboard LEDs work too.
 
 ## Build Configuration
 
+Make sure you have run `git submodule --init` before you build. You
+may also want to run `git submodule update` to ensure `rust-core`
+is fully up-to-date.
+
 Create a file `config.mk` in the root directory of the repository.
 
 Set `RUST_ROOT`, `LLVM_ROOT`, and `GCC_PREFIX` in this file to:
@@ -31,7 +35,7 @@ variable to that as well.
 ## Running the Kernel
 
 The kernel will be output in the `build` directory, and can be run with
-`qemu -kernel build/kernel`.
+`qemu-system-i386 -kernel build/kernel -serial stdio`.
 
 An ISO is also generated, but this does not currently boot correctly.
 
@@ -39,4 +43,13 @@ An ISO is also generated, but this does not currently boot correctly.
 
 See the LICENSE file in the root of the repository for the licensing
 terms for Rustic.
+
+## Other Kernels
+
+There are a few other Rust kernels out there that are worth looking at:
+* https://github.com/pczarn/rustboot
+* https://github.com/LeoTestard/Quasar
+* https://github.com/cmr/cmoss
+
+The Rust OSDev community hangs out in #rust-osdev on irc.mozilla.org.
 
