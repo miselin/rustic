@@ -14,10 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use serial;
+
 mod gdt;
+pub mod idt;
 
 // External variable in assembly code (not actually a function)
 extern { fn tls_emul_segment(); }
+
+fn buserror(_: uint) {
+    serial::write("BUS ERROR");
+    loop {}
+}
 
 pub fn init() {
     // Configure and load GDT
@@ -29,6 +37,17 @@ pub fn init() {
     gdt::entry(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // 0x20 - User Data
     gdt::entry(5, tls_emul_segment as uint, 0xFFFFFFFF, 0x92, 0xCF); // 0x28 - TLS emulation (for stack switching support)
     gdt::load(0x08, 0x10, 0x28);
+
+    // Configure and load IDT; don't enable IRQs until machine init is done.
+    idt::init();
+    idt::load();
+
+    // Load #PF handler now.
+    registertrap(14, buserror);
+}
+
+pub fn registertrap(trap: int, f: extern "Rust" fn(n: uint)) {
+    idt::register(trap, f);
 }
 
 pub fn setirqs(state: bool) {

@@ -28,7 +28,10 @@ mod io;
 mod serial;
 
 // Pull in CPU things.
-mod cpu;
+pub mod cpu;
+
+// Pull in the machine layer.
+mod mach;
 
 #[no_mangle]
 pub extern "C" fn abort() {
@@ -52,11 +55,18 @@ pub fn kmain(_: int, _: **u8) -> int {
     // Get the CPU into a sane, known state.
     cpu::init();
 
+    // Bring up the machine layer.
+    mach::init();
+
     // Welcome message.
     vga::write("Welcome to Rustic!", 0, 0, vga::LightGray, vga::Black);
 
     // All done with initial startup.
     serial::write("Rustic startup complete.\n");
 
-    0
+    // Loop forever, IRQ handling will do the rest!
+    cpu::setirqs(true);
+    loop {
+        cpu::waitforinterrupt();
+    }
 }
