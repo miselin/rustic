@@ -16,6 +16,8 @@
 
 use zero;
 
+use io;
+
 pub enum Colour {
     Black       = 0,
     Blue        = 1,
@@ -59,8 +61,26 @@ pub fn clear(colour: Colour) {
     fill(' ', colour);
 }
 
+fn cursor(x: uint, y: uint) {
+    let position = (y * COLS) + x;
+
+    io::outport(0x3D4, 0x0Fu8);
+    io::outport(0x3D5, ((position & 0xFF) as u8));
+    io::outport(0x3D4, 0x0Eu8);
+    io::outport(0x3D5, (((position >> 8) & 0xFF) as u8));
+
+    unsafe {
+        let curr: u16 = *((VGABASE + (position * 2)) as *u16);
+        let attr: u8 = (curr >> 8) as u8;
+        if attr & 0xFu8 == 0 {
+            // No foreground colour attribute. Fix.
+            *((VGABASE + (position * 2)) as *mut u16) = curr | (LightGray as u16 << 8);
+        }
+    }
+}
+
 #[fixed_stack_segment]
-pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
+pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
     // Pull out the buffer length from the str
     let (_, buflen): (*u8, uint) = unsafe {
         zero::transmute(s)
@@ -69,7 +89,7 @@ pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
     let attr = (bg as u8 << 4) | (fg as u8);
 
     let mut index = 0;
-    let mut offset = (y * 80) + x;
+    let mut offset = (y * COLS) + x;
 
     while index < buflen {
         match s[index] as char {
@@ -100,5 +120,9 @@ pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) {
 
         index += 1;
     }
+
+    cursor((offset % 80), offset / 80);
+
+    offset
 }
 
