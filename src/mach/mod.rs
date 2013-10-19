@@ -16,6 +16,7 @@
 
 mod pic;
 mod pit;
+mod kb;
 
 pub fn init() {
     // Bring up the PIC.
@@ -23,6 +24,10 @@ pub fn init() {
 
     // Bring up the PIT at 100hz.
     pit::init(100);
+
+    // And for fun, bring up the keyboard.
+    kb::init();
+    kb::leds(1);
 }
 
 pub fn registerirq(irq: int, f: extern "Rust" fn()) {
