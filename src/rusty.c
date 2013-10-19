@@ -34,11 +34,6 @@ unsigned char peek(unsigned int addr) {
 void __morestack() {
 }
 
-/// Required by zero.rs, and needs to be more noisy.
-void abort() {
-    while(1) asm volatile("cli;hlt");
-}
-
 /**
  * Ultra stupid malloc for quick testing (replace me with dlmalloc or write me
  * in rust!)

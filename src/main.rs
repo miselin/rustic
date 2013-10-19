@@ -30,6 +30,13 @@ mod serial;
 // Pull in CPU things.
 mod cpu;
 
+#[no_mangle]
+pub extern "C" fn abort() {
+    serial::write("ABORT");
+    cpu::setirqs(false);
+    loop {}
+}
+
 #[start]
 #[fixed_stack_segment]
 pub fn kmain(_: int, _: **u8) -> int {
