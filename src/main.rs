@@ -13,10 +13,10 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#[allow(ctypes)];
 #[no_std];
 
-mod zero;
+#[path = "rust-core/core/mod.rs"]
+mod core;
 
 // Pull in VGA utils - clear screen, write text, etc...
 mod vga;
@@ -41,7 +41,6 @@ pub extern "C" fn abort() {
 }
 
 #[start]
-#[fixed_stack_segment]
 pub fn kmain(_: int, _: **u8) -> int {
     // Clear to black.
     vga::clear(vga::Black);

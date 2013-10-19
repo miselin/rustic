@@ -14,7 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use zero;
+use core;
+use core::intrinsics::size_of;
 
 type gdttable = [gdtentry, ..16];
 
@@ -43,7 +44,7 @@ impl gdtreg {
     pub fn new(gdt: *gdttable) -> gdtreg {
         gdtreg {
             addr: gdt,
-            limit: unsafe { zero::size_of::<gdttable>() + 1 } as u16,
+            limit: (size_of::<gdttable>() + 1) as u16,
         }
     }
 }
@@ -69,8 +70,8 @@ static mut systemgdt: table = table {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemgdt.table = zero::malloc(128) as *mut gdttable;
-        systemgdt.reg = zero::malloc(6) as *mut gdtreg;
+        systemgdt.table = unsafe { core::libc::malloc(128) } as *mut gdttable;
+        systemgdt.reg = unsafe { core::libc::malloc(6) } as *mut gdtreg;
         *systemgdt.reg = gdtreg::new(systemgdt.table as *gdttable);
     }
 }

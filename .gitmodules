@@ -1,0 +1,3 @@
+[submodule "src/rust-core"]
+	path = src/rust-core
+	url = https://github.com/thestinger/rust-core.git

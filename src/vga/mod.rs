@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use zero;
+use core;
 
 use io;
 
@@ -42,7 +42,6 @@ pub static ROWS: uint = 25;
 
 static VGABASE: uint = 0xB8000;
 
-#[fixed_stack_segment]
 pub fn fill(with: char, colour: Colour) {
     let field: u16 = with as u16 | (colour as u16 << 12);
     let max = ROWS * COLS * 2;
@@ -56,7 +55,6 @@ pub fn fill(with: char, colour: Colour) {
     }
 }
 
-#[fixed_stack_segment]
 pub fn clear(colour: Colour) {
     fill(' ', colour);
 }
@@ -79,11 +77,10 @@ fn cursor(x: uint, y: uint) {
     }
 }
 
-#[fixed_stack_segment]
 pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
     // Pull out the buffer length from the str
     let (_, buflen): (*u8, uint) = unsafe {
-        zero::transmute(s)
+        core::intrinsics::transmute(s)
     };
 
     let attr = (bg as u8 << 4) | (fg as u8);
