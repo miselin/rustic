@@ -23,7 +23,8 @@ type idttable = [idtentry, ..256];
 type handlers = [handler, ..256];
 
 // Base for all our IRQ handling.
-extern { fn isrs_base(); }
+#[allow(ctypes)]
+extern "C" { fn isrs_base(); fn set_isr_handler(f: uint); }
 
 // Size of the interrupt stub, so we can create our initial IDT easily.
 static ISR_STUB_LENGTH: uint = 10;
@@ -112,6 +113,8 @@ pub fn init() {
         base += ISR_STUB_LENGTH;
         i += 1;
     }
+
+    unsafe { set_isr_handler(isr_rustentry as uint) };
 }
 
 #[no_mangle]
