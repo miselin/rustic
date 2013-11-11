@@ -93,7 +93,7 @@ fn writechar(c: u8) {
 pub fn write(s: &str) {
     // Pull out the buffer length from the str
     let (_, buflen): (*u8, uint) = unsafe {
-        core::intrinsics::transmute(s)
+        core::mem::transmute(s)
     };
 
     let mut index = 0;
