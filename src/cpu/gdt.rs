@@ -15,7 +15,7 @@
  */
 
 use core;
-use core::intrinsics::size_of;
+use core::mem::size_of;
 
 type gdttable = [gdtentry, ..16];
 
@@ -70,8 +70,8 @@ static mut systemgdt: table = table {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemgdt.table = core::libc::malloc(128) as *mut gdttable;
-        systemgdt.reg = core::libc::malloc(6) as *mut gdtreg;
+        systemgdt.table = core::heap::malloc(128) as *mut gdttable;
+        systemgdt.reg = core::heap::malloc(6) as *mut gdtreg;
         *systemgdt.reg = gdtreg::new(systemgdt.table as *gdttable);
     }
 }

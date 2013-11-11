@@ -15,7 +15,7 @@
  */
 
 use core;
-use core::intrinsics::size_of;
+use core::mem::size_of;
 
 type idttable = [idtentry, ..256];
 
@@ -98,9 +98,9 @@ pub fn register(index: int, handler: extern "Rust" fn(n: uint)) {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemidt.table = core::libc::malloc(2048) as *mut idttable;
-        systemidt.reg = core::libc::malloc(6) as *mut idtreg;
-        systemidt.handlers = core::libc::malloc(2048) as *mut handlers;
+        systemidt.table = core::heap::malloc(2048) as *mut idttable;
+        systemidt.reg = core::heap::malloc(6) as *mut idtreg;
+        systemidt.handlers = core::heap::malloc(2048) as *mut handlers;
         *systemidt.reg = idtreg::new(systemidt.table as *idttable);
     }
 

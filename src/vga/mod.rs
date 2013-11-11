@@ -80,7 +80,7 @@ fn cursor(x: uint, y: uint) {
 pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
     // Pull out the buffer length from the str
     let (_, buflen): (*u8, uint) = unsafe {
-        core::intrinsics::transmute(s)
+        core::mem::transmute(s)
     };
 
     let attr = (bg as u8 << 4) | (fg as u8);

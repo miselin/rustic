@@ -15,6 +15,8 @@
  */
 #[no_std];
 
+#[feature(asm)];
+
 #[path = "rust-core/core/mod.rs"]
 mod core;
 

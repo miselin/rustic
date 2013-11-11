@@ -48,7 +48,7 @@ pub fn init() {
     io::outport(0xA1, 0xFFu8);
 
     // Allocate space for our handler list.
-    unsafe { irqhandlers = core::libc::malloc(192) as *mut handlers; }
+    unsafe { irqhandlers = core::heap::malloc(192) as *mut handlers; }
 
     // Set handlers, set IRQ entries on the CPU.
     let mut i = 0;

@@ -80,7 +80,7 @@ fn gotkey(scancode: u8) {
             ScanCodeMapping[scancode] as u8
         }
     };
-    let s: &str = unsafe { core::intrinsics::transmute((&c, 1)) };
+    let s: &str = unsafe { core::mem::transmute((&c, 1)) };
 
     unsafe {
         let off = vga::write(s, x, y, vga::White, vga::Black);
