@@ -9,17 +9,16 @@ MKISOFS := mkisofs
 
 -include ./config.mk
 
-TARGET := i686-intel-linux-elf
+TARGET := i686-unknown-linux-gnu
 
 CC := $(LLVM_ROOT)/bin/clang
 CFLAGS := -O3 -target $(TARGET)
 
 RC := $(RUST_ROOT)/bin/rustc
-# TODO (eddyb) replace cfg(libc) in rust-core with cfg(allocator=custom)
-RCFLAGS := --opt-level=2 --cfg libc --target $(TARGET)
+RCFLAGS := --opt-level=2 -L $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib --target $(TARGET)
 
 LD := $(GCC_PREFIX)ld
-LDFLAGS := -nostdlib -m $(MACHINE) -Tsrc/linker.ld
+LDFLAGS := -flto --gc-sections -nostdlib -static -m $(MACHINE) -Tsrc/linker.ld
 LIBS := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 AS := $(LLVM_ROOT)/bin/clang
@@ -34,11 +33,14 @@ SRCS := src/main.rs
 CSRCS := src/rusty.c
 ASMSRCS := src/start.S
 
-OBJS := $(patsubst %.rs,$(OBJDIR)/%.o,$(SRCS)) $(patsubst %.c,$(OBJDIR)/%.c.o,$(CSRCS)) $(patsubst %.S,$(OBJDIR)/%.S.o,$(ASMSRCS))
+OBJS := $(patsubst %.c,$(OBJDIR)/%.c.o,$(CSRCS)) $(patsubst %.rs,$(OBJDIR)/%.built.o,$(SRCS)) $(patsubst %.S,$(OBJDIR)/%.S.o,$(ASMSRCS))
 
 KERNEL := $(BUILDDIR)/kernel
 ISO := $(BUILDDIR)/rustic.iso
 
+LD_LIBRARY_PATH := $(RUST_ROOT)/lib
+
+.EXPORT_ALL_VARIABLES:
 .PHONY: clean all
 
 all: $(KERNEL) $(ISO)
@@ -48,19 +50,19 @@ $(ISO): $(KERNEL)
 	@cp $(IMAGESDIR)/grub/stage2_eltorito-x86 ./stage2_eltorito
 	@$(MKISOFS) -D -joliet -quiet -input-charset ascii -R -b stage2_eltorito \
 	    -no-emul-boot -boot-load-size 4 -boot-info-table -o $@ -V 'RUSTIC' \
-	    ./stage2_eltorito \
-	    $(IMAGESDIR)/grub/menu.lst \
-	    $(KERNEL)
+	    -graft-points ./stage2_eltorito \
+	    /boot/grub/menu.lst=$(IMAGESDIR)/grub/menu.lst \
+	    /boot/kernel=$(KERNEL)
 	@rm -f ./stage2_eltorito
 
 $(KERNEL): $(OBJS)
 	@echo "[LINK]" $@
 	@$(LD) $(LDFLAGS) -o $@ $^ $(LIBS)
 
-$(OBJDIR)/%.o: %.rs
+$(OBJDIR)/%.built.o: %.rs
 	@-mkdir -p `dirname $@`
 	@echo "[RC  ]" $@
-	@$(RC) $(RCFLAGS) -o $@ -c $^
+	@$(RC) --crate-type=staticlib $(RCFLAGS) -o $@ $^
 
 $(OBJDIR)/%.c.o: %.c
 	@-mkdir -p `dirname $@`

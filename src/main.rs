@@ -13,12 +13,14 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#[no_std];
+#![no_std]
+#![feature(asm)]
+#![feature(lang_items)]
+#![feature(globs)]
+#![allow(dead_code)]
 
-#[feature(asm)];
-
-#[path = "rust-core/core/mod.rs"]
-mod core;
+// Pull in the 'core' crate.
+extern crate core;
 
 // Pull in VGA utils - clear screen, write text, etc...
 mod vga;
@@ -35,15 +37,18 @@ pub mod cpu;
 // Pull in the machine layer.
 mod mach;
 
+// Pull in utils library.
+mod util;
+
 #[no_mangle]
-pub extern "C" fn abort() {
-    serial::write("ABORT");
+pub extern "C" fn abort() -> ! {
     cpu::setirqs(false);
+    serial::write("ABORT");
     loop {}
 }
 
-#[start]
-pub fn kmain(_: int, _: **u8) -> int {
+#[no_mangle]
+pub extern "C" fn main(_: int, _: *const *const u8) -> int {
     // Clear to black.
     vga::clear(vga::Black);
 
@@ -70,4 +75,19 @@ pub fn kmain(_: int, _: **u8) -> int {
     loop {
         cpu::waitforinterrupt();
     }
+}
+
+#[lang="begin_unwind"]
+pub fn begin_unwind() {
+    abort();
+}
+
+#[lang="stack_exhausted"]
+pub fn stack_exhausted() {
+    abort();
+}
+
+#[lang="eh_personality"]
+pub fn eh_personality() {
+    abort();
 }

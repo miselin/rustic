@@ -18,6 +18,10 @@ use core;
 
 use io;
 
+use core::iter::Iterator;
+use core::option::{Some, None};
+use core::str::{CharRange, StrSlice};
+
 pub enum Colour {
     Black       = 0,
     Blue        = 1,
@@ -68,7 +72,7 @@ fn cursor(x: uint, y: uint) {
     io::outport(0x3D5, (((position >> 8) & 0xFF) as u8));
 
     unsafe {
-        let curr: u16 = *((VGABASE + (position * 2)) as *u16);
+        let curr: u16 = *((VGABASE + (position * 2)) as *const u16);
         let attr: u8 = (curr >> 8) as u8;
         if attr & 0xFu8 == 0 {
             // No foreground colour attribute. Fix.
@@ -77,45 +81,48 @@ fn cursor(x: uint, y: uint) {
     }
 }
 
-pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
-    // Pull out the buffer length from the str
-    let (_, buflen): (*u8, uint) = unsafe {
-        core::mem::transmute(s)
-    };
+fn write_char_internal(c: char, mut offset: uint, attr: u8) -> uint {
+    match c {
+        '\n' => {
+            offset += COLS;
+            offset -= offset % COLS;
+        },
+        '\r' => {
+            offset -= offset % COLS;
+        },
+        '\t' => {
+            offset += 4;
+            offset -= offset % 4;
+        },
+        _ => {
+            unsafe {
+                let p: *mut u16 = (VGABASE + (offset * 2)) as *mut u16;
+                *p = (c as u16) | (attr as u16 << 8);
+            }
+            offset += 1;
+        }
+    }
 
+    offset
+}
+
+pub fn write_char(c: char, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
     let attr = (bg as u8 << 4) | (fg as u8);
+    let offset = (y * COLS) + x;
 
-    let mut index = 0;
+    write_char_internal(c, offset, attr)
+}
+
+pub fn write(s: &str, x: uint, y: uint, fg: Colour, bg: Colour) -> uint {
+    let attr = (bg as u8 << 4) | (fg as u8);
     let mut offset = (y * COLS) + x;
 
-    while index < buflen {
-        match s[index] as char {
-            '\n' => {
-                offset += COLS;
-                offset -= offset % COLS;
-            },
-            '\r' => {
-                offset -= offset % COLS;
-            },
-            '\t' => {
-                offset += 4;
-                offset -= offset % 4;
-            },
-            _ => {
-                unsafe {
-                    let p: *mut u16 = (VGABASE + (offset * 2)) as *mut u16;
-                    *p = (s[index] as u16) | (attr as u16 << 8);
-                }
-                offset += 1;
-            }
-        }
-
-        if(offset > (ROWS * COLS)) {
-            // TODO: scroll!
+    for c in s.chars() {
+        offset = write_char_internal(c, offset, attr);
+        if offset > (ROWS * COLS) {
+            // TODO: scroll.
             break;
         }
-
-        index += 1;
     }
 
     cursor((offset % 80), offset / 80);

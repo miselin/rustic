@@ -46,7 +46,7 @@ pub fn init() {
     registertrap(14, buserror);
 }
 
-pub fn registertrap(trap: int, f: extern "Rust" fn(n: uint)) {
+pub fn registertrap(trap: uint, f: extern "Rust" fn(n: uint)) {
     idt::register(trap, f);
 }
 

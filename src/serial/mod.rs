@@ -17,6 +17,10 @@
 use core;
 use io;
 
+use core::iter::Iterator;
+use core::option::{Some, None};
+use core::str::{CharRange, StrSlice};
+
 pub enum Parity {
     NoParity,
     Odd,
@@ -51,7 +55,7 @@ pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
     io::outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
 
     // Set data/stop bits and parity, which will also clear DLAB.
-    let meta =
+    let meta: u8 =
         match dbits {
             5 => 0,
             6 => 0b01,
@@ -69,7 +73,7 @@ pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
             Space => 0b111000,
             _     => 0,
         };
-    io::outport(SERIAL_BASE + LCtrl as u16, meta as u8);
+    io::outport(SERIAL_BASE + LCtrl as u16, meta);
 
     // Enable and clear the FIFO.
     io::outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
@@ -91,16 +95,8 @@ fn writechar(c: u8) {
 }
 
 pub fn write(s: &str) {
-    // Pull out the buffer length from the str
-    let (_, buflen): (*u8, uint) = unsafe {
-        core::mem::transmute(s)
-    };
-
-    let mut index = 0;
-    while index < buflen {
-        writechar(s[index]);
-
-        index += 1;
+    for c in s.chars() {
+        writechar(c as u8);
     }
 }
 

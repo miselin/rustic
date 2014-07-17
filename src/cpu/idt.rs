@@ -17,6 +17,8 @@
 use core;
 use core::mem::size_of;
 
+use util;
+
 type idttable = [idtentry, ..256];
 
 // One handler per interrupt line.
@@ -32,7 +34,7 @@ static ISR_STUB_LENGTH: uint = 10;
 #[packed]
 struct idtreg {
     limit: u16,
-    addr: *idttable,
+    addr: *const idttable,
 }
 
 #[packed]
@@ -56,7 +58,7 @@ struct table {
 }
 
 impl idtreg {
-    pub fn new(idt: *idttable) -> idtreg {
+    pub fn new(idt: *const idttable) -> idtreg {
         idtreg {
             addr: idt,
             limit: (size_of::<idttable>() + 1) as u16,
@@ -82,13 +84,13 @@ static mut systemidt: table = table {
     handlers: 0 as *mut handlers,
 };
 
-fn entry(index: int, handler: uint, sel: u16, flags: u8) {
+fn entry(index: uint, handler: uint, sel: u16, flags: u8) {
     unsafe {
         (*systemidt.table)[index] = idtentry::new(handler, sel, flags)
     }
 }
 
-pub fn register(index: int, handler: extern "Rust" fn(n: uint)) {
+pub fn register(index: uint, handler: extern "Rust" fn(n: uint)) {
     unsafe {
         (*systemidt.handlers)[index].f = handler;
         (*systemidt.handlers)[index].set = true;
@@ -98,10 +100,10 @@ pub fn register(index: int, handler: extern "Rust" fn(n: uint)) {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemidt.table = core::heap::malloc(2048) as *mut idttable;
-        systemidt.reg = core::heap::malloc(6) as *mut idtreg;
-        systemidt.handlers = core::heap::malloc(2048) as *mut handlers;
-        *systemidt.reg = idtreg::new(systemidt.table as *idttable);
+        systemidt.table = util::mem::allocate();
+        systemidt.reg = util::mem::allocate();
+        systemidt.handlers = util::mem::allocate();
+        *systemidt.reg = idtreg::new(systemidt.table as *const idttable);
     }
 
     // Load default IDT entries, that generally shouldn't ever be changed.

@@ -43,16 +43,15 @@ fn irq() {
 
         if Ticks % 1000 == 0 {
             if Ticks == 4000 {
-                vga::write("\\", vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+                vga::write_char('\\', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
                 Ticks = 0;
-            } else if(Ticks == 3000) {
-                vga::write("-", vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
-            } else if(Ticks == 2000) {
-                vga::write("/", vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
-            } else if(Ticks == 1000) {
-                vga::write("|", vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+            } else if Ticks == 3000 {
+                vga::write_char('-', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+            } else if Ticks == 2000 {
+                vga::write_char('/', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+            } else if Ticks == 1000 {
+                vga::write_char('|', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
             }
         }
     }
 }
-

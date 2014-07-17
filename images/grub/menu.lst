@@ -5,4 +5,5 @@ timeout 0
 
 title  Rustic
 root   (cd)
-kernel kernel
+kernel /boot/kernel
+boot

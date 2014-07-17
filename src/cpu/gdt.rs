@@ -17,12 +17,14 @@
 use core;
 use core::mem::size_of;
 
+use util;
+
 type gdttable = [gdtentry, ..16];
 
 #[packed]
 struct gdtreg {
     limit: u16,
-    addr: *gdttable,
+    addr: *const gdttable,
 }
 
 #[packed]
@@ -41,7 +43,7 @@ struct table {
 }
 
 impl gdtreg {
-    pub fn new(gdt: *gdttable) -> gdtreg {
+    pub fn new(gdt: *const gdttable) -> gdtreg {
         gdtreg {
             addr: gdt,
             limit: (size_of::<gdttable>() + 1) as u16,
@@ -70,17 +72,18 @@ static mut systemgdt: table = table {
 #[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemgdt.table = core::heap::malloc(128) as *mut gdttable;
-        systemgdt.reg = core::heap::malloc(6) as *mut gdtreg;
-        *systemgdt.reg = gdtreg::new(systemgdt.table as *gdttable);
+        systemgdt.table = util::mem::allocate();
+        systemgdt.reg = util::mem::allocate();
+        *systemgdt.reg = gdtreg::new(systemgdt.table as *const gdttable);
     }
 }
 
+#[inline(never)]
 pub fn load(codeseg: u16, dataseg: u16, tlsemulseg: u16) {
     unsafe { asm!(" \
         lgdt ($0); \
-        jmp $1, $$.g; \
-        .g: \
+        jmp $1, $$g; \
+        g: \
         mov $2, %ax; \
         mov %ax, %ds; \
         mov %ax, %es; \
@@ -90,7 +93,7 @@ pub fn load(codeseg: u16, dataseg: u16, tlsemulseg: u16) {
         mov %ax, %gs;" :: "r" (systemgdt.reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
 }
 
-pub fn entry(index: int, base: uint, limit: uint, access: u8, gran: u8) {
+pub fn entry(index: uint, base: uint, limit: uint, access: u8, gran: u8) {
     unsafe {
         (*systemgdt.table)[index] = gdtentry::new(base, limit, access, gran);
     }

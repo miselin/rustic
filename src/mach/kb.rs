@@ -14,11 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
-
 use io;
 use vga;
 use mach;
+
+use core::str::StrSlice;
 
 static mut x: uint = 0;
 static mut y: uint = 1;
@@ -69,21 +69,19 @@ pub fn leds(state: u8) {
     unsafe { io::outport(0x60, ledstate); }
 }
 
-fn gotkey(scancode: u8) {
+fn gotkey(scancode: uint) {
     // Sanity.
-    if scancode > 0x58u8 { return; }
+    if scancode > 0x58 { return; }
 
-    let c: u8 = unsafe {
-        if shifted {
-            ScanCodeMappingShifted[scancode] as u8
-        } else {
-            ScanCodeMapping[scancode] as u8
+    let c = unsafe {
+        match shifted {
+            true => ScanCodeMappingShifted.char_at(scancode),
+            false => ScanCodeMapping.char_at(scancode)
         }
     };
-    let s: &str = unsafe { core::mem::transmute((&c, 1)) };
 
     unsafe {
-        let off = vga::write(s, x, y, vga::White, vga::Black);
+        let off = vga::write_char(c, x, y, vga::White, vga::Black);
 
         // Update x/y
         y = off / 80;
@@ -113,7 +111,7 @@ fn irq() {
             0x3A => leds(0b100), // Caps lock
             0x45 => leds(0b10), // Number lock
             0x46 => leds(0b1), // Scroll lock
-            _ => gotkey(code)
+            _ => gotkey(code as uint)
         }
     } else {
         match scancode {

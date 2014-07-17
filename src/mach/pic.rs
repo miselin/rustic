@@ -19,6 +19,7 @@ use serial;
 
 use io;
 use cpu;
+use util;
 
 type handlers = [handler, ..16];
 
@@ -28,7 +29,7 @@ struct handler {
     level: bool,
 }
 
-pub static RemapBase: int = 0x20;
+pub static RemapBase: uint = 0x20;
 
 static mut irqhandlers: *mut handlers = 0 as *mut handlers;
 
@@ -48,7 +49,7 @@ pub fn init() {
     io::outport(0xA1, 0xFFu8);
 
     // Allocate space for our handler list.
-    unsafe { irqhandlers = core::heap::malloc(192) as *mut handlers; }
+    unsafe { irqhandlers = util::mem::allocate(); }
 
     // Set handlers, set IRQ entries on the CPU.
     let mut i = 0;
@@ -59,7 +60,7 @@ pub fn init() {
     }
 }
 
-pub fn register(irq: int, f: extern "Rust" fn()) {
+pub fn register(irq: uint, f: extern "Rust" fn()) {
     // TODO: expose level-trigger Boolean
     unsafe {
         (*irqhandlers)[irq].f = f;
@@ -68,25 +69,29 @@ pub fn register(irq: int, f: extern "Rust" fn()) {
     }
 }
 
-pub fn enable(line: int) {
+pub fn enable(line: uint) {
     if line > 7 {
         let actual = line - 8;
         let curr: u8 = io::inport(0xA1);
-        io::outport(0xA1, curr & !((1 << actual) as u8))
+        let flag: u8 = 1 << actual;
+        io::outport(0xA1, curr & !flag)
     } else {
         let curr: u8 = io::inport(0x21);
-        io::outport(0x21, curr & !((1 << line) as u8))
+        let flag: u8 = 1 << line;
+        io::outport(0x21, curr & !flag)
     }
 }
 
-pub fn disable(line: int) {
+pub fn disable(line: uint) {
     if line > 7 {
         let actual = line - 8;
         let curr: u8 = io::inport(0xA1);
-        io::outport(0xA1, curr | ((1 << actual) as u8))
+        let flag: u8 = 1 << actual;
+        io::outport(0xA1, curr | flag)
     } else {
         let curr: u8 = io::inport(0x21);
-        io::outport(0x21, curr | ((1 << line) as u8))
+        let flag: u8 = 1 << line;
+        io::outport(0x21, curr | flag)
     }
 }
 
@@ -96,7 +101,7 @@ fn eoi(n: uint) {
 }
 
 pub fn irq(n: uint) {
-    let irqnum = n - RemapBase as uint;
+    let irqnum = n - RemapBase;
 
     // Get status registers for master/slave
     io::outport(0x20, 0x0Bu8);

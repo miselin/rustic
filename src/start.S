@@ -152,9 +152,6 @@ lowlevel_isr_entry:
     mov %ax, %es
     mov %ax, %fs
 
-    mov $0x18, %ax
-    mov %ax, %gs
-
     # Push interrupt number as the parameter.
     mov 48(%esp), %eax
     push %eax

@@ -42,6 +42,10 @@ void *malloc(unsigned int len) {
     return (void *)(ret + sizeof(unsigned int));
 }
 
+void *calloc(unsigned int num, unsigned int size) {
+    return malloc(num * size);
+}
+
 /// Even more naive free().
 void free(void *p) {}
 
@@ -51,6 +55,32 @@ void *memcpy(void *dst, const void *src, unsigned int count) {
     const unsigned char *s = src;
     while(count--)
         *d++ = *s++;
+    return dst;
+}
+
+int memcmp(const void *ptr1, const void *ptr2, unsigned int count) {
+    const char *a = (const char *) ptr1;
+    const char *b = (const char *) ptr2;
+
+    for(unsigned int n = 0; n < count; ++n) {
+        char c = *a - *b;
+        if (c)
+            return c;
+
+        ++a;
+        ++b;
+    }
+
+    return 0;
+}
+
+void *memset(void *dst, int val, unsigned int count) {
+    char *dst_p = (char *) dst;
+    for(unsigned int n = 0; n < count; ++n) {
+        *dst_p = val;
+        ++dst_p;
+    }
+
     return dst;
 }
 
