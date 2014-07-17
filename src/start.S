@@ -152,6 +152,10 @@ lowlevel_isr_entry:
     mov %ax, %es
     mov %ax, %fs
 
+    # Linux TLS emulation segment.
+    mov $0x28, %ax
+    mov %ax, %gs
+
     # Push interrupt number as the parameter.
     mov 48(%esp), %eax
     push %eax
