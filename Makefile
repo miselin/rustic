@@ -11,11 +11,8 @@ MKISOFS := mkisofs
 
 TARGET := i686-unknown-linux-gnu
 
-CC := $(LLVM_ROOT)/bin/clang
-CFLAGS := -O3 -target $(TARGET)
-
 RC := $(RUST_ROOT)/bin/rustc
-RCFLAGS := --opt-level=2 -L $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib --target $(TARGET)
+RCFLAGS := --opt-level=2 -L $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib --target $(TARGET) -Z no-landing-pads
 
 LD := $(GCC_PREFIX)ld
 LDFLAGS := -flto --gc-sections -nostdlib -static -m $(MACHINE) -Tsrc/linker.ld
@@ -30,10 +27,9 @@ OBJDIR := $(BUILDDIR)/obj
 IMAGESDIR := images
 
 SRCS := src/main.rs
-CSRCS := src/rusty.c
 ASMSRCS := src/start.S
 
-OBJS := $(patsubst %.c,$(OBJDIR)/%.c.o,$(CSRCS)) $(patsubst %.rs,$(OBJDIR)/%.built.o,$(SRCS)) $(patsubst %.S,$(OBJDIR)/%.S.o,$(ASMSRCS))
+OBJS := $(patsubst %.S,$(OBJDIR)/%.S.o,$(ASMSRCS)) $(patsubst %.rs,$(OBJDIR)/%.built.o,$(SRCS))
 
 KERNEL := $(BUILDDIR)/kernel
 ISO := $(BUILDDIR)/rustic.iso
@@ -63,11 +59,6 @@ $(OBJDIR)/%.built.o: %.rs
 	@-mkdir -p `dirname $@`
 	@echo "[RC  ]" $@
 	@$(RC) --crate-type=staticlib $(RCFLAGS) -o $@ $^
-
-$(OBJDIR)/%.c.o: %.c
-	@-mkdir -p `dirname $@`
-	@echo "[CC  ]" $@
-	@$(CC) $(CFLAGS) -o $@ -c $^
 
 $(OBJDIR)/%.S.o: %.S
 	@-mkdir -p `dirname $@`

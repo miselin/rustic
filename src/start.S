@@ -115,8 +115,10 @@ _start:
     movl $stack_top, %esp
     movl $stack_bottom, %gs:0x30
 
-    // Call into the C code proper.
-    call _cstart
+    // Call into the Rust code.
+    push %ebx
+    push $1
+    call main
 
     // Halt the system completely if we ever return from the C
     // glue code.

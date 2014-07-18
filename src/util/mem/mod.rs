@@ -15,22 +15,24 @@
  */
 use core;
 
-// Private definition of c_void type.
-enum c_void {
-    __variant1,
-    __variant2,
-}
-
-extern "C" {
-    fn malloc(sz: uint) -> *mut c_void;
-    fn calloc(num: uint, sz: uint) -> *mut c_void;
-    fn free(ptr: *const c_void);
-}
+// TODO: write a proper allocator, prime with multiboot memory map.
+static mut HeapBase: uint = 0x200000;
 
 pub unsafe fn allocate<T>() -> *mut T {
-    calloc(1, core::mem::size_of::<T>()) as *mut T
+    let uint_size = core::mem::size_of::<uint>();
+    let object_size = core::mem::size_of::<T>();
+
+    let ret = (HeapBase + uint_size) as *mut T;
+    let tag = HeapBase as *mut uint;
+
+    HeapBase += uint_size + object_size;
+
+    *tag = object_size;
+    core::ptr::zero_memory(ret, 1);
+
+    ret
 }
 
 pub unsafe fn deallocate<T>(ptr: *const T) {
-    free(ptr as *const c_void)
+    // no-op at the moment.
 }

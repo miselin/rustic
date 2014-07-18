@@ -22,6 +22,9 @@
 // Pull in the 'core' crate.
 extern crate core;
 
+// Pull in the 'rlibc' crate.
+extern crate rlibc;
+
 // Pull in VGA utils - clear screen, write text, etc...
 mod vga;
 
@@ -43,14 +46,19 @@ mod util;
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
     cpu::setirqs(false);
+    vga::clear(vga::Red);
     serial::write("ABORT");
     loop {}
 }
 
 #[no_mangle]
-pub extern "C" fn main(_: int, _: *const *const u8) -> int {
+pub extern "C" fn main(argc: int, _: *const *const u8) -> int {
     // Clear to black.
     vga::clear(vga::Black);
+
+    if argc != 1 {
+        abort();
+    }
 
     // Start up the serial port...
     serial::config(115200, 8, serial::NoParity, 1);
