@@ -15,14 +15,13 @@
  */
 
 use core;
-use core::mem::size_of;
 
 use util;
 
-type idttable = [idtentry, ..256];
+type IdtTable = [IdtEntry, ..256];
 
 // One handler per interrupt line.
-type handlers = [handler, ..256];
+type InterruptHandlerList = [InterruptHandler, ..256];
 
 // Base for all our IRQ handling.
 #[allow(ctypes)]
@@ -32,13 +31,13 @@ extern "C" { fn isrs_base(); fn set_isr_handler(f: uint); }
 static ISR_STUB_LENGTH: uint = 10;
 
 #[packed]
-struct idtreg {
+struct IdtRegister {
     limit: u16,
-    addr: *const idttable,
+    addr: *const IdtTable,
 }
 
 #[packed]
-struct idtentry {
+struct IdtEntry {
     handler_low: u16,
     selector: u16,
     always0: u8,
@@ -46,29 +45,29 @@ struct idtentry {
     handler_high: u16,
 }
 
-struct handler {
+struct InterruptHandler {
     f: extern "Rust" fn(n: uint),
     set: bool,
 }
 
-struct table {
-    reg: *mut idtreg,
-    table: *mut idttable,
-    handlers: *mut handlers,
+struct IdtTableMetadata {
+    reg: *mut IdtRegister,
+    table: *mut IdtTable,
+    handlers: *mut InterruptHandlerList,
 }
 
-impl idtreg {
-    pub fn new(idt: *const idttable) -> idtreg {
-        idtreg {
+impl IdtRegister {
+    pub fn new(idt: *const IdtTable) -> IdtRegister {
+        IdtRegister {
             addr: idt,
-            limit: (size_of::<idttable>() + 1) as u16,
+            limit: (core::mem::size_of::<IdtTable>() + 1) as u16,
         }
     }
 }
 
-impl idtentry {
-    pub fn new(handler: uint, sel: u16, flags: u8) -> idtentry {
-        idtentry {
+impl IdtEntry {
+    pub fn new(handler: uint, sel: u16, flags: u8) -> IdtEntry {
+        IdtEntry {
             handler_low: (handler & 0xFFFF) as u16,
             selector: sel,
             always0: 0,
@@ -78,32 +77,31 @@ impl idtentry {
     }
 }
 
-static mut systemidt: table = table {
-    table: 0 as *mut idttable,
-    reg: 0 as *mut idtreg,
-    handlers: 0 as *mut handlers,
+static mut SystemIDT: IdtTableMetadata = IdtTableMetadata {
+    table: 0 as *mut IdtTable,
+    reg: 0 as *mut IdtRegister,
+    handlers: 0 as *mut InterruptHandlerList,
 };
 
 fn entry(index: uint, handler: uint, sel: u16, flags: u8) {
     unsafe {
-        (*systemidt.table)[index] = idtentry::new(handler, sel, flags)
+        (*SystemIDT.table)[index] = IdtEntry::new(handler, sel, flags)
     }
 }
 
 pub fn register(index: uint, handler: extern "Rust" fn(n: uint)) {
     unsafe {
-        (*systemidt.handlers)[index].f = handler;
-        (*systemidt.handlers)[index].set = true;
+        (*SystemIDT.handlers)[index].f = handler;
+        (*SystemIDT.handlers)[index].set = true;
     }
 }
 
-#[fixed_stack_segment]
 pub fn init() {
     unsafe {
-        systemidt.table = util::mem::allocate();
-        systemidt.reg = util::mem::allocate();
-        systemidt.handlers = util::mem::allocate();
-        *systemidt.reg = idtreg::new(systemidt.table as *const idttable);
+        SystemIDT.table = util::mem::allocate();
+        SystemIDT.reg = util::mem::allocate();
+        SystemIDT.handlers = util::mem::allocate();
+        *SystemIDT.reg = IdtRegister::new(SystemIDT.table as *const IdtTable);
     }
 
     // Load default IDT entries, that generally shouldn't ever be changed.
@@ -111,7 +109,7 @@ pub fn init() {
     let mut base = isrs_base as uint;
     while i < 256 {
         entry(i, base, 0x08u16, 0x8E);
-        unsafe { (*systemidt.handlers)[i].set = false; }
+        unsafe { (*SystemIDT.handlers)[i].set = false; }
         base += ISR_STUB_LENGTH;
         i += 1;
     }
@@ -120,10 +118,9 @@ pub fn init() {
 }
 
 #[no_mangle]
-#[fixed_stack_segment]
 pub extern "C" fn isr_rustentry(which: uint) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    let x: handler = unsafe { (*systemidt.handlers)[which] };
+    let x = unsafe { (*SystemIDT.handlers)[which] };
     if x.set == true {
         let f = x.f;
         f(which);
@@ -131,6 +128,6 @@ pub extern "C" fn isr_rustentry(which: uint) {
 }
 
 pub fn load() {
-    unsafe { asm!("lidt ($0)" :: "r" (systemidt.reg)); }
+    unsafe { asm!("lidt ($0)" :: "r" (SystemIDT.reg)); }
 }
 

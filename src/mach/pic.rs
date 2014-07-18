@@ -14,16 +14,15 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
 use serial;
 
 use io;
 use cpu;
 use util;
 
-type handlers = [handler, ..16];
+type IrqHandlerList = [IrqHandler, ..16];
 
-struct handler {
+struct IrqHandler {
     f: extern "Rust" fn(),
     set: bool,
     level: bool,
@@ -31,9 +30,8 @@ struct handler {
 
 pub static RemapBase: uint = 0x20;
 
-static mut irqhandlers: *mut handlers = 0 as *mut handlers;
+static mut irqhandlers: *mut IrqHandlerList = 0 as *mut IrqHandlerList;
 
-#[fixed_stack_segment]
 pub fn init() {
     io::outport(0x20, 0x11u8);
     io::outport(0xA0, 0x11u8);
@@ -130,7 +128,7 @@ pub fn irq(n: uint) {
     }
 
     // Get the handler we need.
-    let h: handler = unsafe { (*irqhandlers)[irqnum] };
+    let h: IrqHandler = unsafe { (*irqhandlers)[irqnum] };
     if h.set == true {
         // Edge triggered IRQs need to be ACKed before the handler.
         if h.level == false {

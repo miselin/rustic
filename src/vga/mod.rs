@@ -14,13 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
-
 use io;
 
 use core::iter::Iterator;
 use core::option::{Some, None};
-use core::str::{CharRange, StrSlice};
+use core::str::{StrSlice};
 
 pub enum Colour {
     Black       = 0,

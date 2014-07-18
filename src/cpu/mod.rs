@@ -51,7 +51,7 @@ pub fn registertrap(trap: uint, f: extern "Rust" fn(n: uint)) {
 }
 
 pub fn setirqs(state: bool) {
-    if(state == true) {
+    if state == true {
         unsafe { asm!("sti") }
     } else {
         unsafe { asm!("cli") }

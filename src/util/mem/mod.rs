@@ -33,6 +33,6 @@ pub unsafe fn allocate<T>() -> *mut T {
     ret
 }
 
-pub unsafe fn deallocate<T>(ptr: *const T) {
+pub unsafe fn deallocate<T>(_: *const T) {
     // no-op at the moment.
 }
