@@ -80,7 +80,14 @@ fn cursor(x: uint, y: uint) {
 }
 
 fn write_char_internal(c: char, mut offset: uint, attr: u8) -> uint {
-    match c {
+    // Handle crazy codepoints that we can't render.
+    let glyph = if c as u32 > 0xFF {
+        '\xdb'  // ASCII shaded box.
+    } else {
+        c
+    };
+
+    match glyph {
         '\n' => {
             offset += COLS;
             offset -= offset % COLS;
@@ -92,10 +99,11 @@ fn write_char_internal(c: char, mut offset: uint, attr: u8) -> uint {
             offset += 4;
             offset -= offset % 4;
         },
+        '\0' => {},
         _ => {
             unsafe {
                 let p: *mut u16 = (VGABASE + (offset * 2)) as *mut u16;
-                *p = (c as u16) | (attr as u16 << 8);
+                *p = (glyph as u16) | (attr as u16 << 8);
             }
             offset += 1;
         }

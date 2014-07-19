@@ -94,7 +94,12 @@ fn writechar(c: u8) {
 }
 
 pub fn write(s: &str) {
-    for c in s.chars() {
+    // Pass str as bytes to the serial line (UTF-8 can be read by the other
+    // side, we don't have to do any transformations).
+    for c in s.bytes() {
+        if c == 0u8 {
+            continue;
+        }
         writechar(c as u8);
     }
 }
