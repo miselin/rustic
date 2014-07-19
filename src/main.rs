@@ -19,6 +19,9 @@
 #![feature(globs)]
 #![allow(dead_code)]
 
+// Note: remember to update RUST_LIBS in Makefile when adding more extern
+// crates here.
+
 // Pull in the 'core' crate.
 extern crate core;
 

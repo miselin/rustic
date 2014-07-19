@@ -10,6 +10,13 @@ It currently simply writes some text to the screen, displays a slow
 spinning status indicator in the bottom right corner, and echoes
 characters entered on the keyboard. Keyboard LEDs work too.
 
+## Building Rustic
+
+To build, follow the steps in the following sections to create a `config.mk`
+file, and then run `make -B`. The `-B` option forces a rebuild of all targets,
+which is currently necessary until a mechanism for detecting that files in a
+module have changed is added.
+
 ## Build Configuration
 
 Create a file `config.mk` in the root directory of the repository.
@@ -39,33 +46,34 @@ target enabled.
 An example configuration for building on OSX is as follows:
 
 ```
-TARGET=i686-apple-darwin
-LLVM_ROOT=/usr
-
+LLVM_ROOT=$(HOME)/local/llvm
 RUST_ROOT=$(HOME)/local
 GCC_PREFIX=$(HOME)/local/xcompiler/bin/i686-elf-
 
 USE_GCC_AS=true
 
-ASDEFS=-Dmain=_main
+BUILD_RUST_LIBS=true
+
+RUST_CHECKOUT=$(HOME)/src/rust
 ```
 
 You will need a GCC cross-compiler that targets `i686-elf`. You do not need a
 libc or any system-specific support - only a working GCC and Binutils.
 
-The ASDEFS variable is required as a hacky way to work around symbols with a
-prefixed underscore emitted by the OSX toolchains.
-
 USE_GCC_AS=true is required to use the GCC cross-compiler's assembler, rather
 than `clang`. This is necessary as the default system `clang` on OSX is both
 modified and assumes Mach-O object formats.
+
+You will need a checkout of Rust to build on OSX - the build system will also
+build necessary support libraries from this Rust checkout.
 
 ## Running the Kernel
 
 The kernel will be output in the `build` directory, and can be run with
 `qemu-system-i386 -kernel build/kernel -serial stdio`.
 
-An ISO is also generated, but this does not currently boot correctly.
+An ISO is generated that can be used to boot Rustic in QEMU or other emulators,
+or on real hardware by burning onto a CD.
 
 ## License
 

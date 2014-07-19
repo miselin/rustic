@@ -26,6 +26,10 @@ SECTIONS {
     .data : {
         . = ALIGN(4096);
         *(.data*);
+    }
+
+    .rodata : {
+        . = ALIGN(4096);
         *(.rodata*);
     }
 
@@ -33,6 +37,10 @@ SECTIONS {
         . = ALIGN(4096);
         *(.bss*);
     }
+
+    /DISCARD/ : { *(.comment) *(.eh_frame) *(.debug_abbrev) *(.debug_info)
+        *(.debug_line) *(.debug_loc) *(.debug_pubnames) *(.debug_aranges)
+        *(.debug_str) *(.debug_macinfo) *(.debug_ranges)}
 
     . = ALIGN(4096);
     end = .; _end = .; __end = .;

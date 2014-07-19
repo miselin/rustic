@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Matthew Iselin
+ * Copyright (c) 2014 Matthew Iselin
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -13,6 +13,10 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+
+#ifndef STACK_BASE_TLS_OFFSET
+#define STACK_BASE_TLS_OFFSET       0x30
+#endif
 
 .set ALIGN,    1<<0
 .set MEMINFO,  1<<1
@@ -35,7 +39,7 @@ stack_top:
 .align 4
 .global tls_emul_segment
 tls_emul_segment:
-.skip 1024
+.skip 0x1000
 
 // Initial GDT, before we load the real one later.
 .align 4
@@ -75,6 +79,7 @@ gdtr:
 
 .section .init
 .global _start
+.extern main
 .type _start, @function
 _start:
     cli
@@ -113,7 +118,7 @@ _start:
 
     // Set up stack.
     movl $stack_top, %esp
-    movl $stack_bottom, %gs:0x30
+    movl $stack_bottom, %gs:STACK_BASE_TLS_OFFSET
 
     // Call into the Rust code.
     push %ebx
