@@ -14,11 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use io;
-
 use core::iter::Iterator;
 use core::option::{Some, None};
 use core::str::{StrSlice};
+
+use machine;
+
+use mach::IoPort;
 
 pub enum Colour {
     Black       = 0,
@@ -64,10 +66,10 @@ pub fn clear(colour: Colour) {
 fn cursor(x: uint, y: uint) {
     let position = (y * COLS) + x;
 
-    io::outport(0x3D4, 0x0Fu8);
-    io::outport(0x3D5, ((position & 0xFF) as u8));
-    io::outport(0x3D4, 0x0Eu8);
-    io::outport(0x3D5, (((position >> 8) & 0xFF) as u8));
+    machine().outport(0x3D4, 0x0Fu8);
+    machine().outport(0x3D5, ((position & 0xFF) as u8));
+    machine().outport(0x3D4, 0x0Eu8);
+    machine().outport(0x3D5, (((position >> 8) & 0xFF) as u8));
 
     unsafe {
         let curr: u16 = *((VGABASE + (position * 2)) as *const u16);

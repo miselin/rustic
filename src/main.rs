@@ -28,31 +28,37 @@ extern crate core;
 // Pull in the 'rlibc' crate.
 extern crate rlibc;
 
+// Pull in 'alloc' crate for Arc, Rc, Box, etc...
+extern crate alloc;
+
+use mach::{Machine, Keyboard};
+use arch::Architecture;
+
 // Pull in VGA utils - clear screen, write text, etc...
 mod vga;
-
-// Grab I/O for test.
-mod io;
 
 // Grab serial port I/O stuff.
 mod serial;
 
-// Pull in CPU things.
-pub mod cpu;
+// Pull in the architectural layer (CPU etc).
+pub mod arch;
 
 // Pull in the machine layer.
-mod mach;
+pub mod mach;
 
 // Pull in utils library.
 mod util;
 
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
-    cpu::setirqs(false);
+    //architecture().setirqs(false);
     vga::clear(vga::Red);
     serial::write("ABORT");
     loop {}
 }
+
+static mut global_architecture: *mut arch::ArchitectureState = 0 as *mut arch::ArchitectureState;
+static mut global_machine: *mut mach::MachineState = 0 as *mut mach::MachineState;
 
 #[no_mangle]
 pub extern "C" fn main(argc: int, _: *const *const u8) -> int {
@@ -69,11 +75,30 @@ pub extern "C" fn main(argc: int, _: *const *const u8) -> int {
     // Dump some startup junk to the serial port.
     serial::write("Rustic starting up...\n");
 
-    // Get the CPU into a sane, known state.
-    cpu::init();
+    // Create boxed abstractions.
+    let mut arch_object = arch::create();
+    let mut machine = mach::create();
 
-    // Bring up the machine layer.
-    mach::init();
+    // Pass a borrow of the contents of the box to the main trampoline, which
+    // will set up the global singleton.
+    main_trampoline(&mut *arch_object, &mut *machine);
+
+    0
+}
+
+fn main_trampoline(architecture: &mut arch::ArchitectureState, machine: &mut mach::MachineState) {
+    // Load global state for singleton pattern.
+    unsafe {
+        global_architecture = architecture as *mut arch::ArchitectureState;
+        global_machine = machine as *mut mach::MachineState;
+    }
+
+    // Now we can initialise the system.
+    ::architecture().initialise();
+    ::machine().initialise();
+
+    // Set LEDs for fun.
+    ::machine().kb_leds(1);
 
     // Welcome message.
     vga::write("Welcome to Rustic!", 0, 0, vga::LightGray, vga::Black);
@@ -82,10 +107,18 @@ pub extern "C" fn main(argc: int, _: *const *const u8) -> int {
     serial::write("Rustic startup complete.\n");
 
     // Loop forever, IRQ handling will do the rest!
-    cpu::setirqs(true);
+    architecture.set_interrupts(true);
     loop {
-        cpu::waitforinterrupt();
+        architecture.wait_for_event();
     }
+}
+
+pub fn architecture() -> &mut arch::ArchitectureState {
+    unsafe { &mut *global_architecture }
+}
+
+pub fn machine() -> &mut mach::MachineState {
+    unsafe { &mut *global_machine }
 }
 
 #[lang="begin_unwind"]

@@ -16,7 +16,7 @@
 
 use core;
 
-use util;
+use architecture;
 
 type IdtTable = [IdtEntry, ..256];
 
@@ -46,14 +46,54 @@ struct IdtEntry {
 }
 
 struct InterruptHandler {
-    f: extern "Rust" fn(n: uint),
-    set: bool,
+    f: extern "Rust" fn(uint),
 }
 
-struct IdtTableMetadata {
-    reg: *mut IdtRegister,
-    table: *mut IdtTable,
-    handlers: *mut InterruptHandlerList,
+pub struct Idt {
+    table: [IdtEntry, ..256],
+    handlers: [InterruptHandler, ..256],
+    reg: IdtRegister,
+}
+
+impl Idt {
+    pub fn new() -> Idt {
+        Idt{table: [IdtEntry::new(), ..256],
+            handlers: [InterruptHandler::new(default_trap), ..256],
+            reg: IdtRegister::new(0 as *const IdtTable)}
+    }
+
+    pub fn init(&mut self) {
+        let mut i: uint = 0;
+        let mut base = isrs_base as uint;
+        while i < 256 {
+            self.entry(i, base, 0x08u16, 0x8E);
+            base += ISR_STUB_LENGTH;
+            i += 1;
+        }
+
+        self.reg = IdtRegister::new(&self.table as *const IdtTable);
+
+        self.load();
+
+        unsafe { set_isr_handler(isr_rustentry as uint) };
+    }
+
+    pub fn register(&mut self, index: uint, handler: extern "Rust" fn(uint)) {
+        self.handlers[index] = InterruptHandler::new(handler);
+    }
+
+    fn load(&self) {
+        unsafe { asm!("lidt ($0)" :: "r" (&self.reg)); }
+    }
+
+    fn entry(&mut self, index: uint, handler: uint, sel: u16, flags: u8) {
+        self.table[index] = IdtEntry::create(handler, sel, flags)
+    }
+
+    fn trap(&self, which: uint) {
+        let f = self.handlers[which].f;
+        f(which);
+    }
 }
 
 impl IdtRegister {
@@ -66,7 +106,11 @@ impl IdtRegister {
 }
 
 impl IdtEntry {
-    pub fn new(handler: uint, sel: u16, flags: u8) -> IdtEntry {
+    fn new() -> IdtEntry {
+        IdtEntry{handler_low: 0, selector: 0, always0: 0, flags: 0, handler_high: 0}
+    }
+
+    fn create(handler: uint, sel: u16, flags: u8) -> IdtEntry {
         IdtEntry {
             handler_low: (handler & 0xFFFF) as u16,
             selector: sel,
@@ -77,57 +121,18 @@ impl IdtEntry {
     }
 }
 
-static mut SystemIDT: IdtTableMetadata = IdtTableMetadata {
-    table: 0 as *mut IdtTable,
-    reg: 0 as *mut IdtRegister,
-    handlers: 0 as *mut InterruptHandlerList,
-};
-
-fn entry(index: uint, handler: uint, sel: u16, flags: u8) {
-    unsafe {
-        (*SystemIDT.table)[index] = IdtEntry::new(handler, sel, flags)
+impl InterruptHandler {
+    pub fn new(handler: extern "Rust" fn(uint)) -> InterruptHandler {
+        InterruptHandler{f: handler}
     }
-}
-
-pub fn register(index: uint, handler: extern "Rust" fn(n: uint)) {
-    unsafe {
-        (*SystemIDT.handlers)[index].f = handler;
-        (*SystemIDT.handlers)[index].set = true;
-    }
-}
-
-pub fn init() {
-    unsafe {
-        SystemIDT.table = util::mem::allocate();
-        SystemIDT.reg = util::mem::allocate();
-        SystemIDT.handlers = util::mem::allocate();
-        *SystemIDT.reg = IdtRegister::new(SystemIDT.table as *const IdtTable);
-    }
-
-    // Load default IDT entries, that generally shouldn't ever be changed.
-    let mut i = 0;
-    let mut base = isrs_base as uint;
-    while i < 256 {
-        entry(i, base, 0x08u16, 0x8E);
-        unsafe { (*SystemIDT.handlers)[i].set = false; }
-        base += ISR_STUB_LENGTH;
-        i += 1;
-    }
-
-    unsafe { set_isr_handler(isr_rustentry as uint) };
 }
 
 #[no_mangle]
 pub extern "C" fn isr_rustentry(which: uint) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    let x = unsafe { (*SystemIDT.handlers)[which] };
-    if x.set == true {
-        let f = x.f;
-        f(which);
-    }
+    architecture().state.idt.trap(which)
 }
 
-pub fn load() {
-    unsafe { asm!("lidt ($0)" :: "r" (SystemIDT.reg)); }
+fn default_trap(_: uint) {
+    // no-op
 }
-

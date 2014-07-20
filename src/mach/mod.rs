@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Matthew Iselin
+ * Copyright (c) 2014 Matthew Iselin
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,24 +14,64 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-mod pic;
-mod pit;
-mod kb;
+use core;
 
-pub fn init() {
-    // Bring up the PIC.
-    pic::init();
+use core::cell::RefCell;
 
-    // Bring up the PIT at 100hz.
-    pit::init(100);
+use alloc::boxed::Box;
+use alloc::rc::Rc;
 
-    // And for fun, bring up the keyboard.
-    kb::init();
-    kb::leds(1);
+#[cfg(plat_pc)]
+mod pc;
+
+#[cfg(plat_beagle)]
+mod beagle;
+
+#[cfg(plat_rpi)]
+mod rpi;
+
+// Pull in the 'state' module - this defines the State type as the correct
+// private type for the relevant target machine.
+mod state;
+
+pub trait Machine {
+    fn initialise(&mut self) -> bool;
+
+    fn register_irq(&mut self, irq: uint, f: Rc<RefCell<Box<IrqHandler>>>, level_trigger: bool);
 }
 
-pub fn registerirq(irq: uint, f: extern "Rust" fn()) {
-    pic::register(irq, f);
-    pic::enable(irq);
+pub trait IrqHandler {
+    fn irq(&mut self, irqnum: uint);
 }
 
+#[cfg(mach_kb)]
+pub trait Keyboard {
+    fn kb_leds(&mut self, state: u8);
+}
+
+#[cfg(mach_gpio)]
+pub trait Gpio {
+    fn gpio_write(&mut self, pin: uint, value: bool);
+    fn gpio_read(&mut self, pin: uint) -> bool;
+}
+
+#[cfg(mach_ports)]
+pub trait IoPort {
+    fn outport<T: core::num::Int>(&self, port: u16, val: T);
+    fn inport<T: core::num::Int + core::default::Default>(&self, port: u16) -> T;
+}
+
+pub struct MachineState {
+    initialised: bool,
+    state: state::State,
+}
+
+impl MachineState {
+    fn new() -> MachineState {
+        MachineState{initialised: false, state: state::State::new()}
+    }
+}
+
+pub fn create() -> Box<MachineState> {
+    box MachineState::new()
+}

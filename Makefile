@@ -37,13 +37,16 @@ RUST_CHECKOUT :=
 # Preprocessor definitions to pass in when compiling assembly.
 ASDEFS :=
 
+# Configurations to apply to the Rust compiler. Default set is enough for x86.
+RUSTIC_CONFIGS := --cfg mach_kb --cfg mach_ports --cfg plat_pc --cfg arch_i386
+
 -include ./config.mk
 
 LIBGCC := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 ifeq ($(BUILD_RUST_LIBS), true)
 LIBPATH := $(BUILDDIR)/libs
-RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib
+RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib
 else
 LIBPATH := $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib
 RUST_LIBS :=
@@ -52,7 +55,7 @@ endif
 CLANG := $(LLVM_ROOT)/bin/clang
 
 RC := $(RUST_ROOT)/bin/rustc
-RCFLAGS := -O -L $(LIBPATH) --target $(TARGET) -Z no-landing-pads
+RCFLAGS := -O -L $(LIBPATH) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
 
 LD := $(GCC_PREFIX)ld
 LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -Tsrc/linker.ld
@@ -89,6 +92,8 @@ DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 .PHONY: clean all
 
 all: $(RUST_LIBS) $(KERNEL) $(ISO)
+
+nolibs: $(KERNEL) $(ISO)
 
 $(ISO): $(KERNEL)
 	@echo "[ISO ]" $@

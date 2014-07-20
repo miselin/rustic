@@ -14,11 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use io;
-
 use core::iter::Iterator;
 use core::option::{Some, None};
 use core::str::{StrSlice};
+
+use machine;
+
+use mach::IoPort;
 
 pub enum Parity {
     NoParity,
@@ -43,15 +45,15 @@ static SERIAL_BASE: u16 = 0x3F8;
 
 pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
     // Disable IRQs.
-    io::outport(SERIAL_BASE + Inten as u16, 0 as u8);
+    machine().outport(SERIAL_BASE + Inten as u16, 0 as u8);
 
     // Enable DLAB to set the baud rate divisor.
-    io::outport(SERIAL_BASE + LCtrl as u16, 0x80 as u8);
+    machine().outport(SERIAL_BASE + LCtrl as u16, 0x80 as u8);
 
     // Set the divisor for the given baud rate.
     let divisor = 115200 / baud;
-    io::outport(SERIAL_BASE + RxTx as u16, (divisor & 0xF) as u8);
-    io::outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
+    machine().outport(SERIAL_BASE + RxTx as u16, (divisor & 0xF) as u8);
+    machine().outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
 
     // Set data/stop bits and parity, which will also clear DLAB.
     let meta: u8 =
@@ -72,25 +74,25 @@ pub fn config(baud: int, dbits: int, parity: Parity, sbits: int) {
             Space => 0b111000,
             _     => 0,
         };
-    io::outport(SERIAL_BASE + LCtrl as u16, meta);
+    machine().outport(SERIAL_BASE + LCtrl as u16, meta);
 
     // Enable and clear the FIFO.
-    io::outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
+    machine().outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
 
     // Set RTS/DSR, and enable IRQs for if/when INTEN == 1.
-    io::outport(SERIAL_BASE + MCtrl as u16, 0x0B as u8);
+    machine().outport(SERIAL_BASE + MCtrl as u16, 0x0B as u8);
 }
 
 fn writechar(c: u8) {
     // Wait until we are permitted to write.
     loop {
-        let status: u8 = io::inport(SERIAL_BASE + LStat as u16);
+        let status: u8 = machine().inport(SERIAL_BASE + LStat as u16);
         if (status & 0x20) != 0 {
             break;
         }
     }
 
-    io::outport(SERIAL_BASE + RxTx as u16, c);
+    machine().outport(SERIAL_BASE + RxTx as u16, c);
 }
 
 pub fn write(s: &str) {
@@ -107,12 +109,12 @@ pub fn write(s: &str) {
 pub fn read() -> char {
     // Wait until bytes are pending in the FIFO.
     loop {
-        let status: u8 = io::inport(SERIAL_BASE + LStat as u16);
+        let status: u8 = machine().inport(SERIAL_BASE + LStat as u16);
         if (status & 0x1) != 0 {
             break;
         }
     }
 
-    let result: u8 = io::inport(SERIAL_BASE + RxTx as u16);
+    let result: u8 = machine().inport(SERIAL_BASE + RxTx as u16);
     result as char
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Matthew Iselin
+ * Copyright (c) 2014 Matthew Iselin
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -15,8 +15,6 @@
  */
 
 use core;
-
-use util;
 
 type GdtTable = [GdtEntry, ..16];
 
@@ -36,13 +34,29 @@ struct GdtEntry {
     base_high: u8,
 }
 
-struct GdtTableMetadata {
-    reg: *mut GdtRegister,
-    table: *mut GdtTable
+pub struct Gdt {
+    table: GdtTable,
+    reg: GdtRegister,
+}
+
+
+impl Gdt {
+    pub fn new() -> Gdt {
+        Gdt{table: [GdtEntry::new(), ..16], reg: GdtRegister::new(0 as *const GdtTable)}
+    }
+
+    pub fn entry(&mut self, index: uint, base: uint, limit: uint, access: u8, gran: u8) {
+        self.table[index] = GdtEntry::create(base, limit, access, gran);
+    }
+
+    pub fn load(&mut self, codeseg: u16, dataseg: u16, tlsemulseg: u16) {
+        self.reg.addr = &self.table as *const GdtTable;
+        load_gdt(&self.reg as *const GdtRegister, codeseg, dataseg, tlsemulseg);
+    }
 }
 
 impl GdtRegister {
-    pub fn new(gdt: *const GdtTable) -> GdtRegister {
+    fn new(gdt: *const GdtTable) -> GdtRegister {
         GdtRegister {
             addr: gdt,
             limit: (core::mem::size_of::<GdtTable>() + 1) as u16,
@@ -51,7 +65,11 @@ impl GdtRegister {
 }
 
 impl GdtEntry {
-    pub fn new(base: uint, limit: uint, access: u8, gran: u8) -> GdtEntry {
+    fn new() -> GdtEntry {
+        GdtEntry{limit_low: 0, base_low: 0, base_mid: 0, access: 0, gran: 0, base_high: 0}
+    }
+
+    fn create(base: uint, limit: uint, access: u8, gran: u8) -> GdtEntry {
         GdtEntry {
             limit_low: (limit & 0xFFFF) as u16,
             base_low: (base & 0xFFFF) as u16,
@@ -63,21 +81,8 @@ impl GdtEntry {
     }
 }
 
-static mut SystemGDT: GdtTableMetadata = GdtTableMetadata {
-    table: 0 as *mut GdtTable,
-    reg: 0 as *mut GdtRegister,
-};
-
-pub fn init() {
-    unsafe {
-        SystemGDT.table = util::mem::allocate();
-        SystemGDT.reg = util::mem::allocate();
-        *SystemGDT.reg = GdtRegister::new(SystemGDT.table as *const GdtTable);
-    }
-}
-
 #[inline(never)]
-pub fn load(codeseg: u16, dataseg: u16, tlsemulseg: u16) {
+fn load_gdt(reg: *const GdtRegister, codeseg: u16, dataseg: u16, tlsemulseg: u16) {
     unsafe { asm!(" \
         lgdt ($0); \
         jmp $1, $$g; \
@@ -88,12 +93,5 @@ pub fn load(codeseg: u16, dataseg: u16, tlsemulseg: u16) {
         mov %ax, %fs; \
         mov %ax, %ss; \
         mov $3, %ax; \
-        mov %ax, %gs;" :: "r" (SystemGDT.reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
+        mov %ax, %gs;" :: "r" (reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
 }
-
-pub fn entry(index: uint, base: uint, limit: uint, access: u8, gran: u8) {
-    unsafe {
-        (*SystemGDT.table)[index] = GdtEntry::new(base, limit, access, gran);
-    }
-}
-

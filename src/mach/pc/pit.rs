@@ -14,42 +14,54 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use io;
 use vga;
-use mach;
+use mach::{IrqHandler, IoPort};
 
-static mut TimerHertz: int = 10;
-static mut Ticks: int = 0;
+use machine;
 
 static BaseFrequency: int = 1193180;
 
-pub fn init(hz: int) {
-    unsafe { TimerHertz = hz; }
-
-    // Program periodic mode, with our desired divisor for the given
-    // frequency (in hertz).
-    let div = unsafe { BaseFrequency / TimerHertz };
-    io::outport(0x43, 0x36u8);
-    io::outport(0x40, (div & 0xFF) as u8);
-    io::outport(0x40, ((div >> 8) & 0xFF) as u8);
-
-    // Register our IRQ.
-    mach::registerirq(0, irq);
+pub struct Pit {
+    ticks: int,
+    timer_hz: int,
 }
 
-fn irq() {
-    unsafe {
-        Ticks += 1000 / TimerHertz;
+impl Pit {
+    pub fn new() -> Pit{
+        Pit{ticks: 0, timer_hz: 0}
+    }
 
-        if Ticks % 1000 == 0 {
-            if Ticks == 4000 {
+    pub fn init(hz: int) -> Pit {
+        let state = Pit{ticks: 0, timer_hz: hz};
+
+        // Program periodic mode, with our desired divisor for the given
+        // frequency (in hertz).
+        let div = BaseFrequency / state.timer_hz;
+        machine().outport(0x43, 0x36u8);
+        machine().outport(0x40, (div & 0xFF) as u8);
+        machine().outport(0x40, ((div >> 8) & 0xFF) as u8);
+
+        state
+    }
+
+    pub fn irq_num() -> uint {
+        0
+    }
+}
+
+impl IrqHandler for Pit {
+    fn irq(&mut self, _: uint) {
+        self.ticks += 1000 / self.timer_hz;
+
+        if self.ticks % 1000 == 0 {
+            if self.ticks == 4000 {
                 vga::write_char('\\', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
-                Ticks = 0;
-            } else if Ticks == 3000 {
+                self.ticks = 0;
+            } else if self.ticks == 3000 {
                 vga::write_char('-', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
-            } else if Ticks == 2000 {
+            } else if self.ticks == 2000 {
                 vga::write_char('/', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
-            } else if Ticks == 1000 {
+            } else if self.ticks == 1000 {
                 vga::write_char('|', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
             }
         }
