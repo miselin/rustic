@@ -17,6 +17,9 @@ file, and then run `make -B`. The `-B` option forces a rebuild of all targets,
 which is currently necessary until a mechanism for detecting that files in a
 module have changed is added.
 
+If you are building with `BUILD_RUST_LIBS=true`, running `make -B nolibs` will
+only rebuild Rustic itself, which is useful for development.
+
 ## Build Configuration
 
 Create a file `config.mk` in the root directory of the repository.
@@ -27,7 +30,9 @@ Set `RUST_ROOT`, `LLVM_ROOT`, and `GCC_PREFIX` in this file to:
 * `GCC_PREFIX`: prefix for GCC commands (eg, `/usr/bin/`)
 
 `GCC_PREFIX` is prefixed to `ld`, so if you are using a cross-compiler
-use the full prefix, eg `/usr/bin/i686-linux-elf-`.
+use the full prefix, eg `/usr/bin/i686-elf-`. It is highly recommended that a
+cross-compiler is used, even on Linux, to avoid tricky problems during the
+build (especially with respect to libmorestack and libgcc/libcompiler-rt).
 
 If `config.mk` is not found, `/bin/rustc`, `/bin/clang`, `/usr/bin/ld`,
 and `/usr/bin/gcc` will be used automatically.
