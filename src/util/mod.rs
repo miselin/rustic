@@ -14,4 +14,72 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#![macro_escape]
+
 pub mod mem;
+pub mod io;
+
+pub mod colour {
+    pub enum Colour {
+        Black       = 0,
+        Blue        = 1,
+        Green       = 2,
+        Cyan        = 3,
+        Red         = 4,
+        Pink        = 5,
+        Brown       = 6,
+        LightGray   = 7,
+        DarkGray    = 8,
+        LightBlue   = 9,
+        LightGreen  = 10,
+        LightCyan   = 11,
+        LightRed    = 12,
+        LightPink   = 13,
+        Yellow      = 14,
+        White       = 15,
+    }
+}
+
+// format! -> format and return string
+
+#[macro_export]
+macro_rules! format(
+    ($($arg:tt)*) => (
+        format_args!(::util::io::fmt, $($arg)*)
+    )
+)
+
+// Define println! and print! macros, which write to Screen.
+
+#[macro_export]
+macro_rules! print(
+    ($fmt:expr $($arg:tt)*) => (
+        printto!(screen, $fmt $($arg)*)
+    )
+)
+
+#[macro_export]
+macro_rules! println(
+    ($fmt:expr $($arg:tt)*) => (
+        printlnto!(screen, $fmt $($arg)*)
+    )
+)
+
+// printlnto! and printto! macros take a method to call, in the form:
+// fn f<T: Trait>(m: &mut rustic::mach::MachineState, s: &str)
+
+#[macro_export]
+macro_rules! printto(
+    ($f:ident, $fmt:expr $($arg:tt)*) => ({
+        let x = format!($fmt $($arg)*);
+        $f(machine(), x.as_slice())
+    })
+)
+
+#[macro_export]
+macro_rules! printlnto(
+    ($f:ident, $fmt:expr $($arg:tt)*) => ({
+        let x = format!(concat!($fmt, "\n") $($arg)*);
+        $f(machine(), x.as_slice())
+    })
+)

@@ -8,8 +8,11 @@ GCC_PREFIX := /usr/bin/
 
 MKISOFS := mkisofs
 
-# Directory in which built object files will be placed.
-BUILDDIR := $(shell pwd)/build
+# Path to source files (if not '.')
+SRCDIR := $(shell pwd)
+
+# Directory in which built object files will be placed (if not $(SRCDIR)/build).
+BUILDDIR := $(SRCDIR)/build
 
 # Set to the desired linker emulation for the kernel binary.
 MACHINE := elf_i386
@@ -38,15 +41,21 @@ RUST_CHECKOUT :=
 ASDEFS :=
 
 # Configurations to apply to the Rust compiler. Default set is enough for x86.
-RUSTIC_CONFIGS := --cfg mach_kb --cfg mach_ports --cfg mach_serial --cfg mach_screen --cfg mach_mmio --cfg plat_pc --cfg arch_i386
+RUSTIC_CONFIGS := --cfg plat_pc --cfg arch_i386
 
--include ./config.mk
+# Path to rust file for the application crate to build.
+APPLICATION_PATH := $(SRCDIR)/src/application/example.rs
+
+# Override this to redefine the location of the config file.
+CONFIG ?= $(SRCDIR)/config.mk
+
+-include $(CONFIG)
 
 LIBGCC := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 ifeq ($(BUILD_RUST_LIBS), true)
 LIBPATH := $(BUILDDIR)/libs
-RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib
+RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib $(BUILDDIR)/libs/libunicode.rlib $(BUILDDIR)/libs/libcollections.rlib
 else
 LIBPATH := $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib
 RUST_LIBS :=
@@ -55,11 +64,11 @@ endif
 CLANG := $(LLVM_ROOT)/bin/clang
 
 RC := $(RUST_ROOT)/bin/rustc
-RCFLAGS := -O -L $(LIBPATH) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
+RCFLAGS := -O -L $(LIBPATH) -L $(BUILDDIR) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
 
 LD := $(GCC_PREFIX)ld
 LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -Tsrc/linker.ld
-LIBS := $(LIBGCC) -L$(LIBPATH) -lmorestack
+LIBS := $(LIBGCC) -L$(LIBPATH) -L$(BUILDDIR) -lmorestack
 
 AR := $(LLVM_ROOT)/bin/llvm-ar
 CPP := $(GCC_PREFIX)$(PREPROCESSOR)
@@ -77,8 +86,11 @@ LIBDIR := $(BUILDDIR)/libs
 
 IMAGESDIR := images
 
-SRCS := src/main.rs
-ASMSRCS := src/start.s
+LIBRUSTIC := $(BUILDDIR)/librustic.rlib
+LIBRUSTIC_SRCS := $(SRCDIR)/src/rustic.rs
+
+SRCS := $(APPLICATION_PATH)
+ASMSRCS := $(SRCDIR)/src/start.s
 
 OBJS := $(patsubst %.s,$(OBJDIR)/%.s.o,$(ASMSRCS)) $(patsubst %.rs,$(OBJDIR)/%.built.o,$(SRCS))
 
@@ -91,25 +103,30 @@ DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 .EXPORT_ALL_VARIABLES:
 .PHONY: clean all
 
-all: $(RUST_LIBS) $(KERNEL) $(ISO)
+all: $(RUST_LIBS) $(LIBRUSTIC) $(KERNEL) $(ISO)
 
-nolibs: $(KERNEL) $(ISO)
+nolibs: $(LIBRUSTIC) $(KERNEL) $(ISO)
 
 $(ISO): $(KERNEL)
 	@echo "[ISO ]" $@
-	@cp $(IMAGESDIR)/grub/stage2_eltorito-x86 ./stage2_eltorito
+	@cp $(IMAGESDIR)/grub/stage2_eltorito-x86 $(SRCDIR)/stage2_eltorito
 	@$(MKISOFS) -D -joliet -quiet -input-charset iso8859-1 -R \
 		-b boot/grub/stage2_eltorito -no-emul-boot -boot-load-size 4 \
 		-boot-info-table -o $@ -V 'RUSTIC' -graft-points \
 	    boot/grub/stage2_eltorito=./stage2_eltorito \
 	    boot/grub/menu.lst=$(IMAGESDIR)/grub/menu.lst \
 	    boot/kernel=$(KERNEL)
-	@rm -f ./stage2_eltorito
-
+	@rm -f $(SRCDIR)/stage2_eltorito
 
 $(KERNEL): $(OBJS)
 	@echo "[LINK]" $@
 	@$(LD) $(LDFLAGS) -o $@ --whole-archive $^ --no-whole-archive $(LIBS)
+
+$(LIBRUSTIC): $(LIBRUSTIC_SRCS)
+	@-mkdir -p `dirname $@`
+	@echo "[RC  ]" $@
+	@-rm -f $@
+	@$(RC) --crate-type=lib $(RCFLAGS) -o $@ $^
 
 $(OBJDIR)/%.built.o: %.rs
 	@-mkdir -p `dirname $@`

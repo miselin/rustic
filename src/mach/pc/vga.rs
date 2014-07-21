@@ -20,7 +20,9 @@ use core::str::{StrSlice};
 
 use machine;
 
-use mach::{MachineState, IoPort, Screen, Mmio, colour};
+use mach::{MachineState, IoPort, Screen, Mmio};
+
+use util::colour;
 
 pub static COLS: uint = 80;
 pub static ROWS: uint = 25;

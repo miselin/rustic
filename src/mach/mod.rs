@@ -21,6 +21,8 @@ use core::cell::RefCell;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 
+use util::colour;
+
 #[cfg(plat_pc)]
 mod pc;
 
@@ -44,27 +46,6 @@ pub mod parity {
     }
 }
 
-pub mod colour {
-    pub enum Colour {
-        Black       = 0,
-        Blue        = 1,
-        Green       = 2,
-        Cyan        = 3,
-        Red         = 4,
-        Pink        = 5,
-        Brown       = 6,
-        LightGray   = 7,
-        DarkGray    = 8,
-        LightBlue   = 9,
-        LightGreen  = 10,
-        LightCyan   = 11,
-        LightRed    = 12,
-        LightPink   = 13,
-        Yellow      = 14,
-        White       = 15,
-    }
-}
-
 pub trait Machine {
     fn initialise(&mut self) -> bool;
 
@@ -75,24 +56,25 @@ pub trait IrqHandler {
     fn irq(&mut self, irqnum: uint);
 }
 
-#[cfg(mach_kb)]
 pub trait Keyboard {
     fn kb_leds(&mut self, state: u8);
 }
 
-#[cfg(mach_gpio)]
+pub trait TimerHandlers {
+    fn register_timer(&mut self, extern "Rust" fn(uint));
+    fn timer_fired(&mut self, uint);
+}
+
 pub trait Gpio {
     fn gpio_write(&mut self, pin: uint, value: bool);
     fn gpio_read(&mut self, pin: uint) -> bool;
 }
 
-#[cfg(mach_ports)]
 pub trait IoPort {
     fn outport<T: core::num::Int>(&self, port: u16, val: T);
     fn inport<T: core::num::Int + core::default::Default>(&self, port: u16) -> T;
 }
 
-#[cfg(mach_serial)]
 pub trait Serial {
     fn serial_config(&self, baud: int, data_bits: int, parity: parity::Parity, stop_bits: int);
     fn serial_write(&self, s: &str);
@@ -100,7 +82,6 @@ pub trait Serial {
     fn serial_write_char(&self, c: char);
 }
 
-#[cfg(mach_screen)]
 pub trait Screen {
     fn screen_clear(&self);
     fn screen_fill(&self, with: char);
@@ -120,7 +101,6 @@ pub trait Screen {
     fn screen_write(&mut self, s: &str);
 }
 
-#[cfg(mach_mmio)]
 pub trait Mmio {
     fn mmio_write<T>(&self, address: uint, val: T);
     fn mmio_read<T>(&self, address: uint) -> T;
@@ -139,4 +119,14 @@ impl MachineState {
 
 pub fn create() -> Box<MachineState> {
     box MachineState::new()
+}
+
+// Helpers.
+
+pub fn screen<T: Screen>(m: &mut T, s: &str) {
+    m.screen_write(s);
+}
+
+pub fn serial<T: Serial>(m: &mut T, s: &str) {
+    m.serial_write(s);
 }

@@ -19,10 +19,14 @@ use alloc::boxed::Box;
 #[cfg(arch_i386)]
 mod i386;
 
+#[cfg(arch_armv6)]
+mod armv6;
+
+#[cfg(arch_armv7)]
+mod armv7;
+
 // State module pulls in architecture-specific state type as 'State' type.
 mod state;
-
-// TODO: add the rest of the relevant modules here.
 
 pub trait Architecture {
     fn initialise(&mut self) -> bool;

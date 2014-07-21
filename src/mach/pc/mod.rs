@@ -15,6 +15,9 @@
  */
 
 use core;
+use core::prelude::*;
+
+use collections::vec::Vec;
 
 use core::default::Default;
 use core::cell::RefCell;
@@ -22,7 +25,7 @@ use core::cell::RefCell;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 
-use mach::{IrqHandler, Machine, MachineState, Keyboard, IoPort, Serial, Mmio, parity};
+use mach::{IrqHandler, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio, parity};
 
 mod kb;
 mod pic;
@@ -35,6 +38,7 @@ pub struct State {
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
     screen: vga::Vga,
+    timer_handlers: Vec<extern "Rust" fn(uint)>,
 }
 
 impl State {
@@ -42,7 +46,8 @@ impl State {
         State{irq_ctlr: pic::Pic::new(),
               timer: pit::Pit::new(),
               keyboard: kb::PS2Keyboard::new(),
-              screen: vga::Vga::new()}
+              screen: vga::Vga::new(),
+              timer_handlers: Vec::with_capacity(16)}
     }
 }
 
@@ -50,7 +55,6 @@ impl Machine for MachineState {
     fn initialise(&mut self) -> bool {
         // Configure serial port.
         self.serial_config(115200, 8, parity::NoParity, 1);
-        self.serial_write("Rustic starting...\n");
 
         // Bring up the PIC.
         self.state.irq_ctlr = pic::Pic::init();
@@ -81,6 +85,19 @@ impl Machine for MachineState {
     }
 }
 
+impl TimerHandlers for MachineState {
+    fn register_timer(&mut self, f: extern "Rust" fn(uint)) {
+        self.state.timer_handlers.push(f);
+    }
+
+    fn timer_fired(&mut self, ms: uint) {
+        for h in self.state.timer_handlers.iter() {
+            let handler = *h;
+            handler(ms);
+        }
+    }
+}
+
 impl Keyboard for MachineState {
     fn kb_leds(&mut self, state: u8) {
         self.state.keyboard.leds(state)
@@ -88,13 +105,13 @@ impl Keyboard for MachineState {
 }
 
 impl IoPort for MachineState {
-    fn outport<T: core::num::Int>(&self, port: u16, val: T) {
+    fn outport<T: Int>(&self, port: u16, val: T) {
         unsafe {
             asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
         }
     }
 
-    fn inport<T: core::num::Int + core::default::Default>(&self, port: u16) -> T {
+    fn inport<T: Int + Default>(&self, port: u16) -> T {
         unsafe {
             let mut val: T;
             asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));

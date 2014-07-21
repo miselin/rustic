@@ -1,14 +1,33 @@
-# Rustic Operating System
+# Rustic Embedded Framework
 
-This is a simple and small kernel for x86 systems, with the goal of
-writing as much of the system as possible in Rust.
+Rustic is a framework that provides a platform upon which to build embedded
+applications. Rustic offers abstractions that make performing common tasks such
+as MMIO, working with GPIO pins, and handling timers easy, amongst many other
+helpful features.
 
 There are naturally components that are written Assembly, but the goal is to
-write as much of the systema s possible in Rust.
+write as much of the framework as possible in Rust.
 
-It currently simply writes some text to the screen, displays a slow
-spinning status indicator in the bottom right corner, and echoes
-characters entered on the keyboard. Keyboard LEDs work too.
+The repository contains an example application in src/application/example.rs,
+which writes text to the screen and serial port, and shows a spinner in the
+lower right corner of the screen.
+
+The initial goal is to support:
+* i386 PC
+* ARMv6 Rasberry Pi
+* ARMv7 BeagleBoard
+
+Rustic currently provides abstractions for:
+* A VGA console (via `rustic::mach::Screen` trait)
+* A serial line (via `rustic::mach::Serial` trait)
+* A keyboard (via `rustic::mach::Keyboard` trait)
+* Timers (via `rustic::mach::TimerHandlers` trait)
+ * Currently, timers merely call a function every N milliseconds, where N is decided by the machine-specific implementation.
+* GPIO on supported platforms (via `rustic::mach::Gpio` trait)
+* MMIO (via `rustic::mach::Mmio` trait)
+ * This can be used to write to arbitary addresses and should be used with
+ care.
+* Custom IRQ handling (via `rustic::mach::IrqHandler` trait)
 
 ## Building Rustic
 
@@ -19,6 +38,15 @@ module have changed is added.
 
 If you are building with `BUILD_RUST_LIBS=true`, running `make -B nolibs` will
 only rebuild Rustic itself, which is useful for development.
+
+## Building Using Rustic
+
+Simply create a configuration following the steps in the following sections,
+and also add the variable `APPLICATION_PATH`, set to the main Rust file for the
+crate that is your application.
+
+You may pass `CONFIG=path/to/config/file` when invoking the Makefile to specify
+a configuration that is not the default `./config.mk`.
 
 ## Build Configuration
 
@@ -79,6 +107,13 @@ The kernel will be output in the `build` directory, and can be run with
 
 An ISO is generated that can be used to boot Rustic in QEMU or other emulators,
 or on real hardware by burning onto a CD.
+
+## Support
+
+Please open issues at https://github.com/pcmattman/rustic for any issues you
+may come across.
+
+Pull requests are also welcome.
 
 ## License
 

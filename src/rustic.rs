@@ -17,19 +17,22 @@
 #![feature(asm)]
 #![feature(lang_items)]
 #![feature(globs)]
+#![feature(macro_rules)]
+#![feature(phase, macro_rules)]
 #![allow(dead_code)]
+
 
 #![crate_name = "rustic"]
 #![desc = "Rustic Embedded Framework"]
 #![license = "ISC"]
 #![comment = "Provides an framework upon which to build embedded software in Rust."]
-#![crate_type = "staticlib"]
 
 // Note: remember to update RUST_LIBS in Makefile when adding more extern
 // crates here.
 
-// Pull in the 'core' crate.
-extern crate core;
+// Pull in the 'core' crate. Using the phase attribute lets us pull in macros
+// from the core crate.
+#[phase(plugin, link)] extern crate core;
 
 // Pull in the 'rlibc' crate.
 extern crate rlibc;
@@ -37,14 +40,21 @@ extern crate rlibc;
 // Pull in 'alloc' crate for Arc, Rc, Box, etc...
 extern crate alloc;
 
-// Pull in the main embedded application crate.
-extern crate application;
+extern crate collections;
 
-use mach::{Machine, Keyboard, Serial, Screen, colour};
-use arch::Architecture;
+// Publish the main things users care about.
+pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler};
+pub use arch::Architecture;
 
-// Make sure we have the application's crate ready to go.
-use application;
+// Publish the core prelude.
+pub use core::prelude::*;
+
+// Magic for core macros.
+pub use std = core;
+
+// Magic for macros.
+pub use screen = mach::screen;
+pub use serial = mach::serial;
 
 // Pull in the architectural layer (CPU etc).
 pub mod arch;
@@ -53,14 +63,16 @@ pub mod arch;
 pub mod mach;
 
 // Pull in utils library.
-mod util;
+pub mod util;
+
+// Required to be defined by the application.
+extern { fn run(); }
 
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
+    // TODO: should this be provided by the application?
     architecture().set_interrupts(false);
-    machine().screen_attrib(colour::Black, colour::Red);
-    machine().screen_clear();
-    machine().serial_write("ABORT\n");
+    printlnto!(serial, "Abort!");
     loop {}
 }
 
@@ -95,26 +107,12 @@ fn main_trampoline(architecture: &mut arch::ArchitectureState, machine: &mut mac
     ::architecture().initialise();
     ::machine().initialise();
 
-    // Set LEDs for fun.
-    ::machine().kb_leds(1);
-
-    // Welcome message.
-    ::machine().screen_attrib(colour::LightGray, colour::Black);
-    ::machine().screen_clear();
-    ::machine().screen_cursor(0, 0);
-    ::machine().screen_write("Welcome to Rustic!\n");
-
     // All done with initial startup.
-    ::machine().serial_write("Rustic startup complete.\n");
+    printlnto!(serial, "Built on the Rustic Framework.");
 
-    // Run the embedded application.
-    application::run();
-
-    // Loop forever, IRQ handling will do the rest!
+    // Enable IRQs and start up the application.
     architecture.set_interrupts(true);
-    loop {
-        architecture.wait_for_event();
-    }
+    unsafe { run() };
 }
 
 pub fn architecture() -> &mut arch::ArchitectureState {

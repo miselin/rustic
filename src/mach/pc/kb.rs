@@ -17,7 +17,7 @@
 use core::str::StrSlice;
 
 use mach;
-use mach::{IoPort, Screen, colour};
+use mach::IoPort;
 
 use machine;
 
@@ -85,15 +85,12 @@ impl PS2Keyboard {
         // Sanity.
         if scancode > 0x58 { return; }
 
-        let c = match self.shifted {
+        let _ = match self.shifted {
             true => ScanCodeMappingShifted.char_at(scancode),
             false => ScanCodeMapping.char_at(scancode)
         };
 
-        machine().screen_save_attrib();
-        machine().screen_attrib(colour::White, colour::Black);
-        machine().screen_write_char(c);
-        machine().screen_restore_attrib();
+        // TODO: write the key into a queue that can be read out of!
     }
 }
 

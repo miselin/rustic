@@ -14,24 +14,25 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use mach::{IrqHandler, IoPort, Screen, colour};
+use mach::{IrqHandler, TimerHandlers, IoPort};
 
 use machine;
 
-static BaseFrequency: int = 1193180;
+static BaseFrequency: uint = 1193180;
 
 pub struct Pit {
-    ticks: int,
-    timer_hz: int,
+    timer_hz: uint,
 }
 
 impl Pit {
     pub fn new() -> Pit{
-        Pit{ticks: 0, timer_hz: 0}
+        Pit{timer_hz: 0}
     }
 
-    pub fn init(hz: int) -> Pit {
-        let state = Pit{ticks: 0, timer_hz: hz};
+    pub fn init(hz: uint) -> Pit {
+        let mut state = Pit::new();
+
+        state.timer_hz = hz;
 
         // Program periodic mode, with our desired divisor for the given
         // frequency (in hertz).
@@ -50,27 +51,6 @@ impl Pit {
 
 impl IrqHandler for Pit {
     fn irq(&mut self, _: uint) {
-        self.ticks += 1000 / self.timer_hz;
-
-        machine().screen_save_cursor();
-        machine().screen_save_attrib();
-        machine().screen_cursor(machine().screen_cols() - 1, machine().screen_rows() - 1);
-        machine().screen_attrib(colour::White, colour::Black);
-
-        if self.ticks % 1000 == 0 {
-            if self.ticks == 4000 {
-                machine().screen_write_char('\\');
-                self.ticks = 0;
-            } else if self.ticks == 3000 {
-                machine().screen_write_char('-');
-            } else if self.ticks == 2000 {
-                machine().screen_write_char('/');
-            } else if self.ticks == 1000 {
-                machine().screen_write_char('|');
-            }
-        }
-
-        machine().screen_restore_attrib();
-        machine().screen_restore_cursor();
+        machine().timer_fired(1000 / self.timer_hz);
     }
 }
