@@ -22,28 +22,36 @@ use core::cell::RefCell;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 
-use mach::{IrqHandler, Machine, MachineState, Keyboard, IoPort};
+use mach::{IrqHandler, Machine, MachineState, Keyboard, IoPort, Serial, parity};
 
 mod kb;
 mod pic;
 mod pit;
+mod serial;
+mod vga;
 
 pub struct State {
     irq_ctlr: pic::Pic,
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
+    screen: vga::Vga,
 }
 
 impl State {
     pub fn new() -> State {
         State{irq_ctlr: pic::Pic::new(),
               timer: pit::Pit::new(),
-              keyboard: kb::PS2Keyboard::new()}
+              keyboard: kb::PS2Keyboard::new(),
+              screen: vga::Vga::new()}
     }
 }
 
 impl Machine for MachineState {
     fn initialise(&mut self) -> bool {
+        // Configure serial port.
+        self.serial_config(115200, 8, parity::NoParity, 1);
+        self.serial_write("Rustic starting...\n");
+
         // Bring up the PIC.
         self.state.irq_ctlr = pic::Pic::init();
 
@@ -58,6 +66,9 @@ impl Machine for MachineState {
         let keyboard_irq = Rc::new(RefCell::new(box self.state.keyboard as Box<IrqHandler>));
         self.register_irq(pit::Pit::irq_num(), timer_irq, true);
         self.register_irq(kb::PS2Keyboard::irq_num(), keyboard_irq, true);
+
+        // Set up the VGA screen.
+        self.state.screen.init();
 
         self.initialised = true;
 

@@ -31,14 +31,8 @@ extern crate rlibc;
 // Pull in 'alloc' crate for Arc, Rc, Box, etc...
 extern crate alloc;
 
-use mach::{Machine, Keyboard};
+use mach::{Machine, Keyboard, Serial, Screen, colour};
 use arch::Architecture;
-
-// Pull in VGA utils - clear screen, write text, etc...
-mod vga;
-
-// Grab serial port I/O stuff.
-mod serial;
 
 // Pull in the architectural layer (CPU etc).
 pub mod arch;
@@ -51,9 +45,10 @@ mod util;
 
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
-    //architecture().setirqs(false);
-    vga::clear(vga::Red);
-    serial::write("ABORT");
+    architecture().set_interrupts(false);
+    machine().screen_attrib(colour::Black, colour::Red);
+    machine().screen_clear();
+    machine().serial_write("ABORT\n");
     loop {}
 }
 
@@ -62,18 +57,9 @@ static mut global_machine: *mut mach::MachineState = 0 as *mut mach::MachineStat
 
 #[no_mangle]
 pub extern "C" fn main(argc: int, _: *const *const u8) -> int {
-    // Clear to black.
-    vga::clear(vga::Black);
-
     if argc != 1 {
         abort();
     }
-
-    // Start up the serial port...
-    serial::config(115200, 8, serial::NoParity, 1);
-
-    // Dump some startup junk to the serial port.
-    serial::write("Rustic starting up...\n");
 
     // Create boxed abstractions.
     let mut arch_object = arch::create();
@@ -101,10 +87,13 @@ fn main_trampoline(architecture: &mut arch::ArchitectureState, machine: &mut mac
     ::machine().kb_leds(1);
 
     // Welcome message.
-    vga::write("Welcome to Rustic!", 0, 0, vga::LightGray, vga::Black);
+    ::machine().screen_attrib(colour::LightGray, colour::Black);
+    ::machine().screen_clear();
+    ::machine().screen_cursor(0, 0);
+    ::machine().screen_write("Welcome to Rustic!\n");
 
     // All done with initial startup.
-    serial::write("Rustic startup complete.\n");
+    ::machine().serial_write("Rustic startup complete.\n");
 
     // Loop forever, IRQ handling will do the rest!
     architecture.set_interrupts(true);

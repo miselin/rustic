@@ -38,7 +38,7 @@ RUST_CHECKOUT :=
 ASDEFS :=
 
 # Configurations to apply to the Rust compiler. Default set is enough for x86.
-RUSTIC_CONFIGS := --cfg mach_kb --cfg mach_ports --cfg plat_pc --cfg arch_i386
+RUSTIC_CONFIGS := --cfg mach_kb --cfg mach_ports --cfg mach_serial --cfg mach_screen --cfg plat_pc --cfg arch_i386
 
 -include ./config.mk
 

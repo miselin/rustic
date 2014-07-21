@@ -16,9 +16,8 @@
 
 use core::str::StrSlice;
 
-use vga;
 use mach;
-use mach::IoPort;
+use mach::{IoPort, Screen, colour};
 
 use machine;
 
@@ -33,15 +32,13 @@ static ScanCodeMappingShifted: &'static str = "\
 \x00\x1B!@#$%^&*()_+\x08\tQWERTYUIOP{}\n?ASDFGHJKL:\"~?|ZXCVBNM<>??*? ?????????????789-456+1230.?????";
 
 pub struct PS2Keyboard {
-    x: uint,
-    y: uint,
     shifted: bool,
     ledstate: u8,
 }
 
 impl PS2Keyboard {
     pub fn new() -> PS2Keyboard {
-        PS2Keyboard{x: 0, y: 1, shifted: false, ledstate: 0u8}
+        PS2Keyboard{shifted: false, ledstate: 0u8}
     }
 
     pub fn init() -> PS2Keyboard {
@@ -93,15 +90,10 @@ impl PS2Keyboard {
             false => ScanCodeMapping.char_at(scancode)
         };
 
-        let off = vga::write_char(c, self.x, self.y, vga::White, vga::Black);
-
-        // Update x/y
-        self.y = off / 80;
-        self.x = off % 80;
-
-        if self.y >= vga::ROWS {
-            self.y = vga::ROWS - 1;
-        }
+        machine().screen_save_attrib();
+        machine().screen_attrib(colour::White, colour::Black);
+        machine().screen_write_char(c);
+        machine().screen_restore_attrib();
     }
 }
 

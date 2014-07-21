@@ -22,11 +22,9 @@ use core::cell::RefCell;
 
 use arch::{Architecture, TrapHandler};
 
-use serial;
-
 use mach;
 
-use mach::IoPort;
+use mach::{IoPort, Serial};
 
 use architecture;
 use machine;
@@ -136,19 +134,19 @@ impl TrapHandler for Pic {
         // Spurious IRQ?
         if irqnum == 7 {
             if (isr & (1 << 7)) == 0 {
-                serial::write("spurious IRQ 7\n");
+                machine().serial_write("spurious IRQ 7\n");
                 return;
             }
         } else if irqnum == 15 {
             if (isr & (1 << 15)) == 0 {
-                serial::write("spurious IRQ 15\n");
+                machine().serial_write("spurious IRQ 15\n");
                 self.eoi(7);
                 return;
             }
         }
 
         if (isr & (1 << irqnum)) == 0 {
-            serial::write("IRQ stub called with no interrupt status");
+            machine().serial_write("IRQ stub called with no interrupt status");
             return;
         }
 
@@ -165,7 +163,7 @@ impl TrapHandler for Pic {
                         match handler {
                             Some(mut x) => x.irq(irqnum),
                             None => {
-                                serial::write("!! dropping IRQ because borrowing handler out of RefCell failed!")
+                                machine().serial_write("!! dropping IRQ because borrowing handler out of RefCell failed!")
                             },
                         }
                     },
@@ -178,7 +176,7 @@ impl TrapHandler for Pic {
             },
             None => {
                 // Unhandled IRQ, just send the EOI and hope all's well.
-                serial::write("Unhandled IRQ");
+                machine().serial_write("Unhandled IRQ");
                 self.eoi(irqnum);
             }
         };

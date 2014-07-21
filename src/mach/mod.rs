@@ -34,6 +34,37 @@ mod rpi;
 // private type for the relevant target machine.
 mod state;
 
+pub mod parity {
+    pub enum Parity {
+        NoParity,
+        Odd,
+        Even,
+        Mark,
+        Space
+    }
+}
+
+pub mod colour {
+    pub enum Colour {
+        Black       = 0,
+        Blue        = 1,
+        Green       = 2,
+        Cyan        = 3,
+        Red         = 4,
+        Pink        = 5,
+        Brown       = 6,
+        LightGray   = 7,
+        DarkGray    = 8,
+        LightBlue   = 9,
+        LightGreen  = 10,
+        LightCyan   = 11,
+        LightRed    = 12,
+        LightPink   = 13,
+        Yellow      = 14,
+        White       = 15,
+    }
+}
+
 pub trait Machine {
     fn initialise(&mut self) -> bool;
 
@@ -59,6 +90,34 @@ pub trait Gpio {
 pub trait IoPort {
     fn outport<T: core::num::Int>(&self, port: u16, val: T);
     fn inport<T: core::num::Int + core::default::Default>(&self, port: u16) -> T;
+}
+
+#[cfg(mach_serial)]
+pub trait Serial {
+    fn serial_config(&self, baud: int, data_bits: int, parity: parity::Parity, stop_bits: int);
+    fn serial_write(&self, s: &str);
+    fn serial_read_char(&self) -> char;
+    fn serial_write_char(&self, c: char);
+}
+
+#[cfg(mach_screen)]
+pub trait Screen {
+    fn screen_clear(&self);
+    fn screen_fill(&self, with: char);
+
+    fn screen_cols(&self) -> uint;
+    fn screen_rows(&self) -> uint;
+
+    fn screen_save_cursor(&mut self);
+    fn screen_restore_cursor(&mut self);
+    fn screen_cursor(&mut self, x: uint, y: uint);
+
+    fn screen_save_attrib(&mut self);
+    fn screen_restore_attrib(&mut self);
+    fn screen_attrib(&mut self, fg: colour::Colour, bg: colour::Colour);
+
+    fn screen_write_char(&mut self, c: char);
+    fn screen_write(&mut self, s: &str);
 }
 
 pub struct MachineState {

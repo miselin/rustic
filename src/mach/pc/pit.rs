@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use vga;
-use mach::{IrqHandler, IoPort};
+use mach::{IrqHandler, IoPort, Screen, colour};
 
 use machine;
 
@@ -53,17 +52,25 @@ impl IrqHandler for Pit {
     fn irq(&mut self, _: uint) {
         self.ticks += 1000 / self.timer_hz;
 
+        machine().screen_save_cursor();
+        machine().screen_save_attrib();
+        machine().screen_cursor(machine().screen_cols() - 1, machine().screen_rows() - 1);
+        machine().screen_attrib(colour::White, colour::Black);
+
         if self.ticks % 1000 == 0 {
             if self.ticks == 4000 {
-                vga::write_char('\\', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+                machine().screen_write_char('\\');
                 self.ticks = 0;
             } else if self.ticks == 3000 {
-                vga::write_char('-', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+                machine().screen_write_char('-');
             } else if self.ticks == 2000 {
-                vga::write_char('/', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+                machine().screen_write_char('/');
             } else if self.ticks == 1000 {
-                vga::write_char('|', vga::COLS - 1, vga::ROWS - 1, vga::White, vga::Black);
+                machine().screen_write_char('|');
             }
         }
+
+        machine().screen_restore_attrib();
+        machine().screen_restore_cursor();
     }
 }
