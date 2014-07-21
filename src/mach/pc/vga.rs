@@ -20,7 +20,7 @@ use core::str::{StrSlice};
 
 use machine;
 
-use mach::{MachineState, IoPort, Screen, colour};
+use mach::{MachineState, IoPort, Screen, Mmio, colour};
 
 pub static COLS: uint = 80;
 pub static ROWS: uint = 25;
@@ -69,12 +69,10 @@ impl Screen for MachineState {
         let field: u16 = real_char as u16 | (self.state.screen.bg as u16 << 12);
         let max = self.screen_rows() * self.screen_cols() * 2;
 
-        // TODO: we can do this better.
+        // TODO: we can do this better - a memset?
         let mut offset = 0;
         while offset < max {
-            unsafe {
-                *((VGABASE + offset) as *mut u16) = field;
-            }
+            machine().mmio_write(VGABASE + offset, field);
             offset += 2;
         }
     }
@@ -109,13 +107,11 @@ impl Screen for MachineState {
         machine().outport(0x3D4, 0x0Eu8);
         machine().outport(0x3D5, (((position >> 8) & 0xFF) as u8));
 
-        unsafe {
-            let curr: u16 = *((VGABASE + (position * 2)) as *const u16);
-            let attr: u8 = (curr >> 8) as u8;
-            if attr & 0xFu8 == 0 {
-                // No foreground colour attribute for cursor location. Fix.
-                *((VGABASE + (position * 2)) as *mut u16) = curr | (colour::LightGray as u16 << 8);
-            }
+        let curr: u16 = machine().mmio_read(VGABASE + (position * 2));
+        let attr: u8 = (curr >> 8) as u8;
+        if attr & 0xFu8 == 0 {
+            // No foreground colour attribute for cursor location. Fix.
+            machine().mmio_write(VGABASE + (position * 2), curr | (colour::LightGray as u16 << 8));
         }
     }
 
@@ -152,11 +148,10 @@ impl Screen for MachineState {
             },
             '\0' => {},
             _ => {
-                unsafe {
-                    let offset = (self.state.screen.y * self.screen_cols()) + self.state.screen.x;
-                    let p: *mut u16 = (VGABASE + (offset * 2)) as *mut u16;
-                    *p = (glyph as u16) | (attr as u16 << 8);
-                }
+                let offset = (self.state.screen.y * self.screen_cols()) + self.state.screen.x;
+                let val = (glyph as u16) | (attr as u16 << 8);
+                machine().mmio_write(VGABASE + (offset * 2), val);
+
                 self.state.screen.x += 1;
             }
         }

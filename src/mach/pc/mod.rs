@@ -22,7 +22,7 @@ use core::cell::RefCell;
 use alloc::boxed::Box;
 use alloc::rc::Rc;
 
-use mach::{IrqHandler, Machine, MachineState, Keyboard, IoPort, Serial, parity};
+use mach::{IrqHandler, Machine, MachineState, Keyboard, IoPort, Serial, Mmio, parity};
 
 mod kb;
 mod pic;
@@ -100,5 +100,17 @@ impl IoPort for MachineState {
             asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
             val
         }
+    }
+}
+
+impl Mmio for MachineState {
+    fn mmio_write<T>(&self, address: uint, val: T) {
+        let ptr = address as *mut T;
+        unsafe { core::ptr::write(ptr, val) };
+    }
+
+    fn mmio_read<T>(&self, address: uint) -> T {
+        let ptr = address as *const T;
+        unsafe { core::ptr::read(ptr) }
     }
 }

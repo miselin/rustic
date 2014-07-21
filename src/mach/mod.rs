@@ -120,6 +120,12 @@ pub trait Screen {
     fn screen_write(&mut self, s: &str);
 }
 
+#[cfg(mach_mmio)]
+pub trait Mmio {
+    fn mmio_write<T>(&self, address: uint, val: T);
+    fn mmio_read<T>(&self, address: uint) -> T;
+}
+
 pub struct MachineState {
     initialised: bool,
     state: state::State,
