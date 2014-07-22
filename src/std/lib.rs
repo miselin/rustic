@@ -93,4 +93,14 @@ pub mod prelude {
     pub use boxed::Box;
     pub use string::String;
     pub use vec::Vec;
+
+    pub use comm::{sync_channel, channel};
+    pub use comm::{SyncSender, Sender, Receiver};
+}
+
+pub mod rt {
+    pub use alloc::{heap, libc_heap};
+    pub use rustrt::{task, local, mutex, exclusive, stack, args, rtio, thread};
+    pub use rustrt::{Stdio, Stdout, Stderr, begin_unwind, begin_unwind_fmt};
+    pub use rustrt::{bookkeeping, at_exit, unwind, DEFAULT_ERROR_CODE, Runtime};
 }

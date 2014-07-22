@@ -136,6 +136,47 @@ isr_rustentry:
     .long 0x0
 
 .section .text
+.global save_state
+.type save_state, @function
+save_state:
+    mov 4(%esp), %eax
+
+    # Save stack, without return address.
+    mov %esp, %ecx
+    add $4, %ecx
+
+    # Save return address.
+    mov (%esp), %edx
+
+    # Save registers.
+    mov %edi, (%eax)
+    mov %esi, 4(%eax)
+    mov %ebx, 8(%eax)
+    mov %ebp, 12(%eax)
+    mov %ecx, 16(%eax)
+    mov %edx, 20(%eax)
+
+    xor %eax, %eax
+    ret
+
+.global restore_state
+.type restore_state, @function
+restore_state:
+    mov 4(%esp), %eax
+
+    # Reload registers.
+    mov (%eax), %edi
+    mov 4(%eax), %esi
+    mov 8(%eax), %ebx
+    mov 12(%eax), %ebp
+    mov 16(%eax), %esp
+    mov 20(%eax), %edx
+
+    # Return '1', to say 'returned from context switch'.
+    mov $1, %eax
+    push %edx
+    ret
+
 .global set_isr_handler
 .type set_isr_handler, @function
 set_isr_handler:

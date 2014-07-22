@@ -105,13 +105,12 @@ impl Serial for MachineState {
             }
         }
 
+        // char -> UTF-8 conversion; we must use the length return value rather
+        // than iteration as the number of bytes to write is not static.
         let mut bytes = [0u8, .. 6];
         let length = c.encode_utf8(bytes); 
-
-        let mut index = 0;
-        while index < length {
+        for index in range(0, length) {
             machine().outport(SERIAL_BASE + RxTx as u16, bytes[index]);
-            index += 1;
         }
     }
 }

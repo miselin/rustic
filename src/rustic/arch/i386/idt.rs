@@ -63,12 +63,10 @@ impl Idt {
     }
 
     pub fn init(&mut self) {
-        let mut i: uint = 0;
         let mut base = isrs_base as uint;
-        while i < 256 {
+        for i in range(0, 256) {
             self.entry(i, base, 0x08u16, 0x8E);
             base += ISR_STUB_LENGTH;
-            i += 1;
         }
 
         self.reg = IdtRegister::new(&self.table as *const IdtTable);

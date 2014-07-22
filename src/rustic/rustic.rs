@@ -29,9 +29,12 @@
 // runtime.
 extern crate libc;
 
+// Needed for synchronisation primitives.
+extern crate sync;
+
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler};
-pub use arch::Architecture;
+pub use arch::{Architecture, Threads};
 
 // Magic for macros.
 pub use screen = mach::screen;
@@ -93,7 +96,9 @@ fn main_trampoline(architecture: &mut arch::ArchitectureState, machine: &mut mac
 
     // Enable IRQs and start up the application.
     architecture.set_interrupts(true);
-    unsafe { run() };
+    spawn(proc() {
+        unsafe { run() };
+    })
 }
 
 pub fn architecture() -> &mut arch::ArchitectureState {
@@ -102,4 +107,9 @@ pub fn architecture() -> &mut arch::ArchitectureState {
 
 pub fn machine() -> &mut mach::MachineState {
     unsafe { &mut *global_machine }
+}
+
+pub fn spawn(f: proc()) {
+    architecture().spawn_thread(f);
+    architecture().reschedule();
 }

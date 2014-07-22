@@ -14,6 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use std::iter::range_step;
+
 use machine;
 
 use mach::{MachineState, IoPort, Screen, Mmio};
@@ -68,10 +70,8 @@ impl Screen for MachineState {
         let max = self.screen_rows() * self.screen_cols() * 2;
 
         // TODO: we can do this better - a memset?
-        let mut offset = 0;
-        while offset < max {
+        for offset in range_step(0, max, 2) {
             machine().mmio_write(VGABASE + offset, field);
-            offset += 2;
         }
     }
 

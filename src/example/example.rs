@@ -93,7 +93,13 @@ pub fn run() {
     // Test serial port.
     printlnto!(serial, "This is on the serial port, awesome!");
 
+    // Demo a thread printing a message.
+    spawn(proc() {
+        println!("Hello, from a thread!");
+    });
+
     loop {
       architecture().wait_for_event();
+      architecture().reschedule();
     }
-} 
+}

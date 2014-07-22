@@ -37,6 +37,15 @@ pub trait Architecture {
     fn wait_for_event(&self);
 }
 
+pub trait Threads {
+    fn spawn_thread(&mut self, proc());
+
+    fn thread_terminate(&mut self) -> !;
+
+    // Trigger a reschedule.
+    fn reschedule(&mut self);
+}
+
 pub trait TrapHandler {
     fn trap(&mut self, num: uint);
 }
