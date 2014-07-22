@@ -40,6 +40,9 @@ RUST_CHECKOUT :=
 # Preprocessor definitions to pass in when compiling assembly.
 ASDEFS :=
 
+# Preprocessor definitions for the C compiler. Default is good enough for x86.
+CPPDEFS := -DPLAT_PC -DARCH_I386
+
 # Configurations to apply to the Rust compiler. Default set is enough for x86.
 RUSTIC_CONFIGS := --cfg plat_pc --cfg arch_i386
 
@@ -60,18 +63,16 @@ RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $
 # RUST_LIBS_STD lists any Rust libraries that depend on libstd, and therefore
 # must be built after the drop-in Rustic libstd is built.
 # Wishlist for RUST_LIBS_STD:
-# * arena
-# * debug
-# * flate
-# * fmt_macros
-# * fourcc
+# * arena (needs std::rt)
+# * debug (needs std::gc, std::io)
+# * flate (needs std::c_vec)
+# * fmt_macros (needs ::std::fmt::format)
+# * fourcc (needs syntax)
 # * green (depends on: std::os, std::rt, std::sync - can we implement these?)
 # * hexfloat (depends on syntax)
 # * num (core::num does not provide enough support)
-# * rustrt (depends on rustrt_native, which we can provide)
-# * sync (depends on rustrt)
 # * syntax (depends on fmt_macros)
-RUST_LIBS_STD :=
+RUST_LIBS_STD := $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/librustrt.rlib $(BUILDDIR)/libs/libsync.rlib
 else
 LIBPATH := $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib
 RUST_LIBS :=
@@ -82,6 +83,9 @@ CLANG := $(LLVM_ROOT)/bin/clang
 
 RC := $(RUST_ROOT)/bin/rustc
 RCFLAGS := -O -L $(LIBPATH) -L $(BUILDDIR) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
+
+CC := $(GCC_PREFIX)gcc
+CFLAGS := -O3
 
 LD := $(GCC_PREFIX)ld
 LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -Tsrc/linker.ld
@@ -106,6 +110,9 @@ IMAGESDIR := images
 LIBRUSTIC := $(BUILDDIR)/librustic.rlib
 LIBRUSTIC_SRCS := $(SRCDIR)/src/rustic/rustic.rs
 
+LIBRUSTRT_NATIVE := $(BUILDDIR)/librustrt_native.a
+LIBRUSTRT_NATIVE_SRCS := $(SRCDIR)/src/rustrt_native/rustrt.c
+
 LIBSTD := $(BUILDDIR)/libstd.rlib
 LIBSTD_SRCS := $(SRCDIR)/src/std/lib.rs
 
@@ -123,11 +130,11 @@ DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 .EXPORT_ALL_VARIABLES:
 .PHONY: clean all
 
-all: $(RUST_LIBS) $(LIBSTD) $(RUST_LIBS_STD) $(LIBRUSTIC) $(KERNEL) $(ISO)
+all: onlylibs nolibs
 
 nolibs: $(LIBRUSTIC) $(KERNEL) $(ISO)
 
-onlylibs: $(RUST_LIBS) $(LIBSTD) $(RUST_LIBS_STD)
+onlylibs: $(RUST_LIBS) $(LIBRUSTRT_NATIVE) $(LIBSTD) $(RUST_LIBS_STD)
 
 onlystdlibs: $(RUST_LIBS_STD)
 
@@ -157,6 +164,13 @@ $(LIBSTD): $(LIBSTD_SRCS)
 	@echo "[RC  ]" $@
 	@-rm -f $@
 	@$(RC) --crate-type=lib $(RCFLAGS) -o $@ $^
+
+$(LIBRUSTRT_NATIVE): $(LIBRUSTRT_NATIVE_SRCS)
+	@-mkdir -p `dirname $@`
+	@echo "[CC  ]" $@
+	@$(CC) $(CFLAGS) -o $@.o -c $^
+	@$(AR) cru $@ $@.o
+	@rm -f $@.o
 
 $(OBJDIR)/%.built.o: %.rs
 	@-mkdir -p `dirname $@`

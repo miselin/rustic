@@ -17,6 +17,7 @@
 #![macro_escape]
 
 pub mod mem;
+pub mod libc;
 pub mod io;
 
 pub mod colour {

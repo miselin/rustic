@@ -24,8 +24,10 @@ extern crate unicode;
 #[phase(plugin, link)] extern crate core;
 extern crate core_collections = "collections";
 extern crate core_rand = "rand";
-// extern crate core_sync = "sync";
+extern crate core_sync = "sync";
+extern crate libc;
 extern crate rlibc;
+extern crate rustrt;
 
 pub use core::any;
 pub use core::bool;
@@ -61,7 +63,7 @@ pub use core_collections::vec;
 
 pub use unicode::char;
 
-// pub use core_sync::comm;
+pub use core_sync::comm;
 
 pub use int = core::int;
 pub use i8 = core::i8;

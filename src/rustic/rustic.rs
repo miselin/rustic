@@ -25,6 +25,10 @@
 #![license = "ISC"]
 #![comment = "Provides an framework upon which to build embedded software in Rust."]
 
+// Pull in the libc crate for us to implement libc functions needed by the Rust
+// runtime.
+extern crate libc;
+
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler};
 pub use arch::Architecture;
@@ -98,19 +102,4 @@ pub fn architecture() -> &mut arch::ArchitectureState {
 
 pub fn machine() -> &mut mach::MachineState {
     unsafe { &mut *global_machine }
-}
-
-#[lang="begin_unwind"]
-pub fn begin_unwind() {
-    abort();
-}
-
-#[lang="stack_exhausted"]
-pub fn stack_exhausted() {
-    abort();
-}
-
-#[lang="eh_personality"]
-pub fn eh_personality() {
-    abort();
 }
