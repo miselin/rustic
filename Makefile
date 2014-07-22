@@ -44,7 +44,7 @@ ASDEFS :=
 RUSTIC_CONFIGS := --cfg plat_pc --cfg arch_i386
 
 # Path to rust file for the application crate to build.
-APPLICATION_PATH := $(SRCDIR)/src/application/example.rs
+APPLICATION_PATH := $(SRCDIR)/src/example/example.rs
 
 # Override this to redefine the location of the config file.
 CONFIG ?= $(SRCDIR)/config.mk
@@ -104,7 +104,7 @@ LIBDIR := $(BUILDDIR)/libs
 IMAGESDIR := images
 
 LIBRUSTIC := $(BUILDDIR)/librustic.rlib
-LIBRUSTIC_SRCS := $(SRCDIR)/src/rustic.rs
+LIBRUSTIC_SRCS := $(SRCDIR)/src/rustic/rustic.rs
 
 LIBSTD := $(BUILDDIR)/libstd.rlib
 LIBSTD_SRCS := $(SRCDIR)/src/std/lib.rs
