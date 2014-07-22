@@ -55,10 +55,27 @@ LIBGCC := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
 ifeq ($(BUILD_RUST_LIBS), true)
 LIBPATH := $(BUILDDIR)/libs
-RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib $(BUILDDIR)/libs/libunicode.rlib $(BUILDDIR)/libs/libcollections.rlib
+RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib $(BUILDDIR)/libs/libunicode.rlib $(BUILDDIR)/libs/libcollections.rlib $(BUILDDIR)/libs/librand.rlib
+
+# RUST_LIBS_STD lists any Rust libraries that depend on libstd, and therefore
+# must be built after the drop-in Rustic libstd is built.
+# Wishlist for RUST_LIBS_STD:
+# * arena
+# * debug
+# * flate
+# * fmt_macros
+# * fourcc
+# * green (depends on: std::os, std::rt, std::sync - can we implement these?)
+# * hexfloat (depends on syntax)
+# * num (core::num does not provide enough support)
+# * rustrt (depends on rustrt_native, which we can provide)
+# * sync (depends on rustrt)
+# * syntax (depends on fmt_macros)
+RUST_LIBS_STD :=
 else
 LIBPATH := $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib
 RUST_LIBS :=
+RUST_LIBS_STD :=
 endif
 
 CLANG := $(LLVM_ROOT)/bin/clang
@@ -89,6 +106,9 @@ IMAGESDIR := images
 LIBRUSTIC := $(BUILDDIR)/librustic.rlib
 LIBRUSTIC_SRCS := $(SRCDIR)/src/rustic.rs
 
+LIBSTD := $(BUILDDIR)/libstd.rlib
+LIBSTD_SRCS := $(SRCDIR)/src/std/lib.rs
+
 SRCS := $(APPLICATION_PATH)
 ASMSRCS := $(SRCDIR)/src/start.s
 
@@ -103,9 +123,13 @@ DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 .EXPORT_ALL_VARIABLES:
 .PHONY: clean all
 
-all: $(RUST_LIBS) $(LIBRUSTIC) $(KERNEL) $(ISO)
+all: $(RUST_LIBS) $(LIBSTD) $(RUST_LIBS_STD) $(LIBRUSTIC) $(KERNEL) $(ISO)
 
 nolibs: $(LIBRUSTIC) $(KERNEL) $(ISO)
+
+onlylibs: $(RUST_LIBS) $(LIBSTD) $(RUST_LIBS_STD)
+
+onlystdlibs: $(RUST_LIBS_STD)
 
 $(ISO): $(KERNEL)
 	@echo "[ISO ]" $@
@@ -123,6 +147,12 @@ $(KERNEL): $(OBJS)
 	@$(LD) $(LDFLAGS) -o $@ --whole-archive $^ --no-whole-archive $(LIBS)
 
 $(LIBRUSTIC): $(LIBRUSTIC_SRCS)
+	@-mkdir -p `dirname $@`
+	@echo "[RC  ]" $@
+	@-rm -f $@
+	@$(RC) --crate-type=lib $(RCFLAGS) -o $@ $^
+
+$(LIBSTD): $(LIBSTD_SRCS)
 	@-mkdir -p `dirname $@`
 	@echo "[RC  ]" $@
 	@-rm -f $@

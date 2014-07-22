@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
+use std;
 
 type GdtTable = [GdtEntry, ..16];
 
@@ -59,7 +59,7 @@ impl GdtRegister {
     fn new(gdt: *const GdtTable) -> GdtRegister {
         GdtRegister {
             addr: gdt,
-            limit: (core::mem::size_of::<GdtTable>() + 1) as u16,
+            limit: (std::mem::size_of::<GdtTable>() + 1) as u16,
         }
     }
 }

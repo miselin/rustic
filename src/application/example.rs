@@ -13,7 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
- #![no_std]
  #![feature(globs)]
  #![feature(phase, macro_rules)]
 
@@ -26,7 +25,7 @@
 
 pub use rustic::*;
 
-use rustic::mach::{Keyboard, Screen};
+use rustic::mach::{Keyboard, Screen, TimerHandlers};
 
 static mut global_ticks: uint = 0;
 

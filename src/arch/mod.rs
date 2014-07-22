@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use alloc::boxed::Box;
-
 #[cfg(arch_i386)]
 mod i386;
 

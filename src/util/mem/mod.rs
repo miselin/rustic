@@ -13,15 +13,16 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-use core;
+
+use std;
 
 // TODO: write a proper allocator, prime with multiboot memory map.
 static mut HeapBase: uint = 0x200000;
 
 pub fn allocate<T>() -> *mut T {
     unsafe {
-        let ptr = alloc(core::mem::size_of::<T>(), 4) as *mut T;
-        core::ptr::zero_memory(ptr, 1);
+        let ptr = alloc(std::mem::size_of::<T>(), 4) as *mut T;
+        std::ptr::zero_memory(ptr, 1);
         ptr
     }
 }
@@ -32,7 +33,7 @@ pub fn deallocate<T>(p: *const T) {
 
 pub unsafe fn alloc(sz: uint, _: uint) -> *mut u8 {
     // TODO: handle alignment.
-    let uint_size = core::mem::size_of::<uint>();
+    let uint_size = std::mem::size_of::<uint>();
     let object_size = sz;
 
     let ret = (HeapBase + uint_size) as *mut u8;

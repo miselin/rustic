@@ -14,16 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
-use core::prelude::*;
-
-use collections::vec::Vec;
-
-use core::default::Default;
-use core::cell::RefCell;
-
-use alloc::boxed::Box;
-use alloc::rc::Rc;
+use std;
+use std::cell::RefCell;
+use std::default::Default;
+use std::rc::Rc;
 
 use mach::{IrqHandler, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio, parity};
 
@@ -123,11 +117,11 @@ impl IoPort for MachineState {
 impl Mmio for MachineState {
     fn mmio_write<T>(&self, address: uint, val: T) {
         let ptr = address as *mut T;
-        unsafe { core::ptr::write(ptr, val) };
+        unsafe { std::ptr::write(ptr, val) };
     }
 
     fn mmio_read<T>(&self, address: uint) -> T {
         let ptr = address as *const T;
-        unsafe { core::ptr::read(ptr) }
+        unsafe { std::ptr::read(ptr) }
     }
 }

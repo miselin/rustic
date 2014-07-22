@@ -14,12 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
-use core::result::Ok;
-use core::slice::Vector;
+use std::fmt;
+use std::slice::Vector;
 
-use collections::string;
-use collections::vec::Vec;
+use std::string;
 
 pub struct MemBuffer {
     buf: Vec<u8>,
@@ -39,15 +37,15 @@ impl MemBuffer {
     pub fn unwrap(self) -> Vec<u8> { self.buf }
 }
 
-impl core::fmt::FormatWriter for MemBuffer {
-    fn write(&mut self, buf: &[u8]) -> core::fmt::Result {
+impl fmt::FormatWriter for MemBuffer {
+    fn write(&mut self, buf: &[u8]) -> fmt::Result {
         self.buf.push_all(buf);
         Ok(())
     }
 }
 
-pub fn fmt(args: &core::fmt::Arguments) -> string::String {
+pub fn fmt(args: &fmt::Arguments) -> string::String {
     let mut output = MemBuffer::new();
-    let _ = core::fmt::write(&mut output, args);
+    let _ = fmt::write(&mut output, args);
     string::String::from_utf8(output.unwrap()).unwrap()
 }

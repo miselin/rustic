@@ -14,11 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core::iter::Iterator;
-use core::option::{Some, None};
-use core::str::{StrSlice};
-use core::char::Char;
-
 use machine;
 
 use mach::{MachineState, IoPort, Serial, parity};

@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core::str::StrSlice;
-
 use mach;
 use mach::IoPort;
 

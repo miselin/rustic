@@ -13,7 +13,6 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
-#![no_std]
 #![feature(asm)]
 #![feature(lang_items)]
 #![feature(globs)]
@@ -21,36 +20,14 @@
 #![feature(phase, macro_rules)]
 #![allow(dead_code)]
 
-
 #![crate_name = "rustic"]
 #![desc = "Rustic Embedded Framework"]
 #![license = "ISC"]
 #![comment = "Provides an framework upon which to build embedded software in Rust."]
 
-// Note: remember to update RUST_LIBS in Makefile when adding more extern
-// crates here.
-
-// Pull in the 'core' crate. Using the phase attribute lets us pull in macros
-// from the core crate.
-#[phase(plugin, link)] extern crate core;
-
-// Pull in the 'rlibc' crate.
-extern crate rlibc;
-
-// Pull in 'alloc' crate for Arc, Rc, Box, etc...
-extern crate alloc;
-
-extern crate collections;
-
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler};
 pub use arch::Architecture;
-
-// Publish the core prelude.
-pub use core::prelude::*;
-
-// Magic for core macros.
-pub use std = core;
 
 // Magic for macros.
 pub use screen = mach::screen;

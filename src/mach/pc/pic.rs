@@ -14,11 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core::option::{Option, Some, None};
-
-use alloc::boxed::Box;
-use alloc::rc::Rc;
-use core::cell::RefCell;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use arch::{Architecture, TrapHandler};
 

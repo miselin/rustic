@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
+use std;
 
 use architecture;
 
@@ -100,7 +100,7 @@ impl IdtRegister {
     pub fn new(idt: *const IdtTable) -> IdtRegister {
         IdtRegister {
             addr: idt,
-            limit: (core::mem::size_of::<IdtTable>() + 1) as u16,
+            limit: (std::mem::size_of::<IdtTable>() + 1) as u16,
         }
     }
 }

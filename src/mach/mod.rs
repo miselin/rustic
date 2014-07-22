@@ -14,12 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use core;
-
-use core::cell::RefCell;
-
-use alloc::boxed::Box;
-use alloc::rc::Rc;
+use std;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use util::colour;
 
@@ -71,8 +68,8 @@ pub trait Gpio {
 }
 
 pub trait IoPort {
-    fn outport<T: core::num::Int>(&self, port: u16, val: T);
-    fn inport<T: core::num::Int + core::default::Default>(&self, port: u16) -> T;
+    fn outport<T: Int>(&self, port: u16, val: T);
+    fn inport<T: Int + std::default::Default>(&self, port: u16) -> T;
 }
 
 pub trait Serial {
