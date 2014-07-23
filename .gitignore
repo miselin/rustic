@@ -2,3 +2,4 @@ build
 config.mk
 *.swp
 *.sublime-workspace
+doc/

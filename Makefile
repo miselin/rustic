@@ -82,6 +82,9 @@ CLANG := $(LLVM_ROOT)/bin/clang
 RC := $(RUST_ROOT)/bin/rustc
 RCFLAGS := -O -L $(LIBPATH) -L $(BUILDDIR) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
 
+RUSTDOC := $(RUST_ROOT)/bin/rustdoc
+RUSTDOC_FLAGS := $(RUSTIC_CONFIGS)
+
 CC := $(GCC_PREFIX)gcc
 CFLAGS := -O3
 
@@ -162,6 +165,9 @@ rust_src:
 endif
 
 ################################################################################
+
+doc:
+	$(RUSTDOC) $(RUSTDOC_FLAGS) $(LIBRUSTIC_SRCS)
 
 $(ISO): $(KERNEL)
 	@echo "[ISO ]" $@
