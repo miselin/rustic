@@ -24,10 +24,10 @@ extern crate unicode;
 #[phase(plugin, link)] extern crate core;
 extern crate core_collections = "collections";
 extern crate core_rand = "rand";
-extern crate core_sync = "sync";
+#[cfg(not(bootstrap))] extern crate core_sync = "sync";
 extern crate libc;
 extern crate rlibc;
-extern crate rustrt;
+#[cfg(not(bootstrap))] extern crate rustrt;
 
 pub use core::any;
 pub use core::bool;
@@ -63,7 +63,7 @@ pub use core_collections::vec;
 
 pub use unicode::char;
 
-pub use core_sync::comm;
+#[cfg(not(bootstrap))] pub use core_sync::comm;
 
 pub use int = core::int;
 pub use i8 = core::i8;
@@ -94,10 +94,11 @@ pub mod prelude {
     pub use string::String;
     pub use vec::Vec;
 
-    pub use comm::{sync_channel, channel};
-    pub use comm::{SyncSender, Sender, Receiver};
+    #[cfg(not(bootstrap))] pub use comm::{sync_channel, channel};
+    #[cfg(not(bootstrap))] pub use comm::{SyncSender, Sender, Receiver};
 }
 
+#[cfg(not(bootstrap))]
 pub mod rt {
     pub use alloc::{heap, libc_heap};
     pub use rustrt::{task, local, mutex, exclusive, stack, args, rtio, thread};

@@ -14,6 +14,9 @@ SRCDIR := $(shell pwd)
 # Directory in which built object files will be placed (if not $(SRCDIR)/build).
 BUILDDIR := $(SRCDIR)/build
 
+# Architecture to use when building libmorestack
+MORESTACK_ARCH := i386
+
 # Set to the desired linker emulation for the kernel binary.
 MACHINE := elf_i386
 
@@ -27,15 +30,11 @@ USE_GCC_AS := false
 # Set to 'gcc -E' if that makes more sense for the target.
 PREPROCESSOR := cpp
 
-# Set to 'true' to build required Rust libraries as part of the Rustic build,
-# rather than using the ones provided by the system. Handy for cross-compiling
-# from OSX!
-BUILD_RUST_LIBS := false
-
 # Set to the path to a checkout of https://github.com/mozilla/rust (or your own
 # fork) - needed libraries will be built as part of the build process if
 # $(BUILD_RUST_LIBS) == 'true'.
-RUST_CHECKOUT :=
+# Leave default to have the repository pulled as part of the build process.
+RUST_CHECKOUT := $(BUILDDIR)/rust
 
 # Preprocessor definitions to pass in when compiling assembly.
 ASDEFS :=
@@ -49,14 +48,18 @@ RUSTIC_CONFIGS := --cfg plat_pc --cfg arch_i386
 # Path to rust file for the application crate to build.
 APPLICATION_PATH := $(SRCDIR)/src/example/example.rs
 
+# Path to linker script to use for the build. Default is good enough for x86.
+LINKER_SCRIPT := $(SRCDIR)/src/linker.ld
+
 # Override this to redefine the location of the config file.
 CONFIG ?= $(SRCDIR)/config.mk
 
 -include $(CONFIG)
 
+RUST_REPO := "https://github.com/mozilla/rust"
+
 LIBGCC := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
-ifeq ($(BUILD_RUST_LIBS), true)
 LIBPATH := $(BUILDDIR)/libs
 RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $(BUILDDIR)/libs/libcore.rlib $(BUILDDIR)/libs/librlibc.rlib $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/liballoc.rlib $(BUILDDIR)/libs/libunicode.rlib $(BUILDDIR)/libs/libcollections.rlib $(BUILDDIR)/libs/librand.rlib
 
@@ -73,11 +76,6 @@ RUST_LIBS := $(BUILDDIR)/libs/libmorestack.a $(BUILDDIR)/libs/libcompiler-rt.a $
 # * num (core::num does not provide enough support)
 # * syntax (depends on fmt_macros)
 RUST_LIBS_STD := $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/librustrt.rlib $(BUILDDIR)/libs/libsync.rlib
-else
-LIBPATH := $(RUST_ROOT)/lib/rustlib/$(TARGET)/lib
-RUST_LIBS :=
-RUST_LIBS_STD :=
-endif
 
 CLANG := $(LLVM_ROOT)/bin/clang
 
@@ -88,7 +86,7 @@ CC := $(GCC_PREFIX)gcc
 CFLAGS := -O3
 
 LD := $(GCC_PREFIX)ld
-LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -Tsrc/linker.ld
+LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -T$(LINKER_SCRIPT)
 LIBS := $(LIBGCC) -L$(LIBPATH) -L$(BUILDDIR) -lmorestack
 
 AR := $(LLVM_ROOT)/bin/llvm-ar
@@ -128,15 +126,42 @@ LD_LIBRARY_PATH := $(RUST_ROOT)/lib
 DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 
 .EXPORT_ALL_VARIABLES:
-.PHONY: clean all
+.PHONY: checkenv bootstrap runtime onlylibs rustic app clean all
 
-all: onlylibs nolibs
+################################################################################
 
-nolibs: $(LIBRUSTIC) $(KERNEL) $(ISO)
+all: rust_src checkenv bootstrap runtime onlylibs rustic app
 
-onlylibs: $(RUST_LIBS) $(LIBRUSTRT_NATIVE) $(LIBSTD) $(RUST_LIBS_STD)
+checkenv:
+	@[[ -d "$(RUST_CHECKOUT)" ]] || echo "Please set RUST_CHECKOUT to a valid directory."
+	@[[ -e "$(APPLICATION_PATH)" ]] || echo "APPLICATION_PATH is set to a file that does not exist."
+	@[[ -x "$(CC)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute GCC)."
+	@[[ -x "$(LD)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute LD)."
+	@[[ -x "$(RC)" ]] || echo "Please make sure RUST_ROOT is set correctly (can't execute the Rust compiler)."
+	@[[ -x "$(AR)" ]] || echo "Please make sure LLVM_ROOT is set correctly (can't execute llvm-ar)."
 
-onlystdlibs: $(RUST_LIBS_STD)
+# We need to have a bootstrap step to build a bootstrap runtime. In the
+# bootstrap runtime, libstd does not pull in the 'sync' or 'rustrt' crates,
+# both of which depend on libstd.
+bootstrap:
+	@[[ -e $(LIBSTD) ]] || (echo "Bootstrapping Rustic's Rust runtime..."; \
+	make -B -C . runtime RUSTIC_CONFIGS="$(RUSTIC_CONFIGS) --cfg bootstrap" CONFIG=$(CONFIG) -j1; \
+	echo "Bootstrap complete!")
+
+runtime: $(RUST_LIBS) $(LIBRUSTRT_NATIVE) $(RUST_LIBS_STD) $(LIBSTD)
+
+rustic: $(LIBRUSTIC)
+
+app: $(KERNEL) $(ISO)
+
+ifeq ($(RUST_CHECKOUT), $(BUILDDIR)/rust)
+rust_src:
+	@[[ -e $(RUST_CHECKOUT) ]] && (cd $(RUST_CHECKOUT) && git pull) || (cd `dirname $(RUST_CHECKOUT)` && git clone $(RUST_REPO))
+else
+rust_src:
+endif
+
+################################################################################
 
 $(ISO): $(KERNEL)
 	@echo "[ISO ]" $@
@@ -186,7 +211,7 @@ $(OBJDIR)/%.s.o: %.s
 	@$(AS) $(ASFLAGS) -o $@ -c $@.S
 	@rm -f $@.S
 
-$(LIBDIR)/libmorestack.a: $(RUST_CHECKOUT)/src/rt/arch/i386/morestack.S
+$(LIBDIR)/libmorestack.a: $(RUST_CHECKOUT)/src/rt/arch/$(MORESTACK_ARCH)/morestack.S
 	@-mkdir -p `dirname $@`
 	@echo "[AS  ]" $@
 	@$(AS) $(ASFLAGS) -D__linux__ -o $@.o -c $^
@@ -195,7 +220,7 @@ $(LIBDIR)/libmorestack.a: $(RUST_CHECKOUT)/src/rt/arch/i386/morestack.S
 
 # Because libcompiler-rt is essentially LLVM's replacement for libgcc, we can
 # cheat here for cross-compiling and use the cross-compiler's libgcc.a :-)
-$(LIBDIR)/libcompiler-rt.a: $(RUST_CHECKOUT)/src/compiler-rt/Makefile
+$(LIBDIR)/libcompiler-rt.a:
 	@echo "[LN  ]" $@
 	@ln -sf $(LIBGCC) $@
 
@@ -205,6 +230,4 @@ $(LIBDIR)/lib%.rlib: $(RUST_CHECKOUT)/src/lib%/lib.rs
 	@$(RC) --crate-type=lib $(RCFLAGS) -o $@ $^
 
 clean:
-	-rm -f $(KERNEL)
-	-rm -f $(OBJS)
-	-rm -rf $(RUST_LIBS)
+	-rm -f $(RUST_LIBS) $(LIBRUSTRT_NATIVE) $(RUST_LIBS_STD) $(LIBSTD) $(LIBRUSTIC) $(KERNEL) $(ISO)
