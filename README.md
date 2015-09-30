@@ -25,7 +25,7 @@ Rustic currently provides abstractions for:
  * Currently, timers merely call a function every N milliseconds, where N is decided by the machine-specific implementation.
 * GPIO on supported platforms (via `rustic::mach::Gpio` trait)
 * MMIO (via `rustic::mach::Mmio` trait)
- * This can be used to write to arbitary addresses and should be used with
+ * This can be used to write to arbitrary addresses and should be used with
  care.
 * Custom IRQ handling (via `rustic::mach::IrqHandler` trait)
 
