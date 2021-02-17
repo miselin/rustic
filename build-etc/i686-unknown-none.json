@@ -1,0 +1,18 @@
+{
+    "arch": "x86",
+    "cpu": "pentium4",
+    "data-layout": "e-m:e-p:32:32-p270:32:32-p271:32:32-p272:64:64-f64:32:64-f80:32-n8:16:32-S128",
+    "executables": true,
+    "llvm-target": "i686-unknown-none",
+    "max-atomic-width": 32,
+    "os": "none",
+    "position-independent-executables": false,
+    "target-pointer-width": "32",
+    "target-c-int-width": "32",
+    "panic-strategy": "abort",
+    "features": "-mmx,-sse,+soft-float",
+    "disable-redzone": true,
+    "linker-flavor": "ld.lld",
+    "linker": "rust-lld",
+    "has-elf-tls": false
+}

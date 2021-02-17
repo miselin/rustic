@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #![feature(globs)]
+#![feature(restricted_std)]
+
+#![no_main]
 
 use rustic::{Kernel, println, printlnto, kernel_mut};
 
@@ -69,9 +72,16 @@ fn ticks(ms: usize) {
 }
 */
 
-// Demo - shows off some of the features Rustic can provide.
 #[no_mangle]
-pub fn run(kernel: &mut Kernel) {
+pub extern "C" fn main(_argc: i32, _: *const *const u8) -> i32 {
+    let mut kernel_state = Kernel::new();
+    kernel_state.start(run);
+
+    0
+}
+
+// Demo - shows off some of the features Rustic can provide.
+fn run(kernel: &mut Kernel) {
     // Wipe screen, prepare for writing text.
     kernel.machine_mut().screen_attrib(util::colour::Colour::LightGray, util::colour::Colour::Black);
     kernel.machine_mut().screen_clear();

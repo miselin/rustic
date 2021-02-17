@@ -3,7 +3,6 @@ name = "rustic"
 version = "0.1.0"
 authors = ["Matt Iselin <matthew@theiselions.net>"]
 edition = "2018"
-crate-type = ["staticlib"]
 
 [features]
 default = ["arch_i386", "plat_pc"]
@@ -12,3 +11,6 @@ arch_i386 = []
 plat_pc = []
 plat_beagle = []
 plat_rpi = []
+
+[build-dependencies]
+cc = "1.0"

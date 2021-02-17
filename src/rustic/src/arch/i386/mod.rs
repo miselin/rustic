@@ -23,7 +23,6 @@ use crate::util;
 
 mod gdt;
 mod idt;
-pub mod mem;
 
 type ThreadEntryPoint = fn();
 

@@ -17,7 +17,10 @@
 #![feature(llvm_asm)]
 #![feature(lang_items)]
 #![feature(rustc_private)]
+#![feature(restricted_std)]
 #![allow(dead_code)]
+
+#![no_main]
 
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler, serial};
@@ -50,28 +53,15 @@ pub extern "C" fn abort() -> ! {
     loop {}
 }
 
-#[no_mangle]
-pub extern "C" fn main(argc: i32, _: *const *const u8) -> i32 {
-    if argc != 1 {
-        abort();
-    }
-
-    // Create abstractions now that we're in the kernel
-    let mut kernel_state = Kernel::new();
-    kernel_state.main_trampoline();
-
-    0
-}
-
 impl<'a> Kernel<'a> {
-    fn new() -> Kernel<'a> {
+    pub fn new() -> Kernel<'a> {
         Kernel {
             mach: mach::create(),
             arch: arch::create()
         }
     }
 
-    fn main_trampoline(&'a mut self) {
+    pub fn start(&'a mut self, app: extern "Rust" fn(&mut Kernel)) {
         // Now we can initialise the system.
         self.arch.initialise();
         self.mach.initialise();
@@ -88,7 +78,7 @@ impl<'a> Kernel<'a> {
         */
 
         // Run the application.
-        unsafe { run(self) };
+        unsafe { app(self) };
     }
 
     pub fn architecture<'b>(&'b self) -> &'b arch::ArchitectureState {
