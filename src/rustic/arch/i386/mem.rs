@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Matthew Iselin
+ * Copyright (c) 2013 Matthew Iselin
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -14,11 +14,30 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#[cfg(feature="plat_pc")]
-pub use super::pc::State;
+#[no_mangle]
+pub extern fn memcpy(dst: *mut u8, src: *const u8, n: isize) -> *const u8 {
+    for i in 0..n {
+        unsafe { *dst.offset(i) = *src.offset(i) };
+    }
 
-#[cfg(feature="plat_beagle")]
-pub use super::beagle::State;
+    return dst;
+}
 
-#[cfg(feature="plat_rpi")]
-pub use super::rpi::State;
+#[no_mangle]
+pub extern fn memmove(dst: *mut u8, src: *const u8, n: isize) -> *const u8 {
+    // TODO: this is buggy because it just memcpy's
+    for i in 0..n {
+        unsafe { *dst.offset(i) = *src.offset(i) };
+    }
+
+    return dst;
+}
+
+#[no_mangle]
+pub extern fn memset(dst: *mut u8, val: u8, n: isize) -> *const u8 {
+    for i in 0..n {
+        unsafe { *dst.offset(i) = val };
+    }
+
+    return dst;
+}

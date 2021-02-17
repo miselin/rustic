@@ -14,12 +14,11 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use mach;
-use mach::IoPort;
+use crate::mach;
+use crate::mach::IoPort;
+use crate::kernel;
 
-use machine;
-
-static KEYBOARD_IRQ: uint = 1;
+static KEYBOARD_IRQ: usize = 1;
 static KEYBOARD_CMD: u16 = 0x60;
 static KEYBOARD_DATA: u16 = 0x64;
 
@@ -45,28 +44,28 @@ impl PS2Keyboard {
         // Put the keyboard into scan code set 1, ready for our mapping.
         /*
         kbcmdwait();
-        machine().outport(0x60, 0xF0u8);
+        kernel().machine().outport(0x60, 0xF0u8);
         kbcmdwait();
-        machine().outport(0x60, 1u8);
+        kernel().machine().outport(0x60, 1u8);
         */
 
         state
     }
 
-    pub fn irq_num() -> uint {
+    pub fn irq_num() -> usize {
         KEYBOARD_IRQ
     }
 
     fn kbcmdwait(&self) {
         loop {
-            let status: u8 = machine().inport(KEYBOARD_DATA);
+            let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
             if status & 0x2 == 0 { break; }
         }
     }
 
     fn kbdatawait(&self) {
         loop {
-            let status: u8 = machine().inport(KEYBOARD_DATA);
+            let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
             if status & 0x1 != 0 { break; }
         }
     }
@@ -74,34 +73,37 @@ impl PS2Keyboard {
     pub fn leds(&mut self, state: u8) {
         self.ledstate ^= state;
         self.kbcmdwait();
-        machine().outport(KEYBOARD_CMD, 0xEDu8);
+        kernel().machine().outport(KEYBOARD_CMD, 0xEDu8);
         self.kbcmdwait();
-        machine().outport(KEYBOARD_CMD, self.ledstate);
+        kernel().machine().outport(KEYBOARD_CMD, self.ledstate);
     }
 
-    fn gotkey(&mut self, scancode: uint) {
+    fn gotkey(&mut self, scancode: usize) {
         // Sanity.
         if scancode > 0x58 { return; }
 
         let _ = match self.shifted {
-            true => ScanCodeMappingShifted.char_at(scancode),
-            false => ScanCodeMapping.char_at(scancode)
-        };
+            true => ScanCodeMappingShifted,
+            false => ScanCodeMapping
+        }.chars().nth(scancode).unwrap();
 
         // TODO: write the key into a queue that can be read out of!
     }
 }
 
 impl mach::IrqHandler for PS2Keyboard {
-    fn irq(&mut self, _: uint) {
+    fn irq(&self, _: usize) {
+        // TODO: figure out the mutable/immutable thing
+
+        /*
         // Check status, make sure a key is actually pending.
-        let status: u8 = machine().inport(KEYBOARD_DATA);
+        let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
         if status & 0x1 == 0 {
             return;
         }
 
         // Get scancode.
-        let scancode: u8 = machine().inport(KEYBOARD_CMD);
+        let scancode: u8 = kernel().machine().inport(KEYBOARD_CMD);
 
         // Top bit set means 'key up'
         if scancode & 0x80 != 0 {
@@ -111,7 +113,7 @@ impl mach::IrqHandler for PS2Keyboard {
                 0x3A => self.leds(0b100), // Caps lock
                 0x45 => self.leds(0b10), // Number lock
                 0x46 => self.leds(0b1), // Scroll lock
-                _ => self.gotkey(code as uint)
+                _ => self.gotkey(code as usize)
             }
         } else {
             match scancode {
@@ -119,5 +121,6 @@ impl mach::IrqHandler for PS2Keyboard {
                 _ => {}
             }
         }
+        */
     }
 }

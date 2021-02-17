@@ -18,6 +18,8 @@
 #define STACK_BASE_TLS_OFFSET       0x30
 #endif
 
+.code32
+
 .set ALIGN,    1<<0
 .set MEMINFO,  1<<1
 .set FLAGS,    ALIGN | MEMINFO

@@ -14,13 +14,14 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#![macro_escape]
+#![macro_use]
 
 pub mod mem;
 pub mod libc;
 pub mod io;
 
 pub mod colour {
+    #[derive(Copy, Clone)]
     pub enum Colour {
         Black       = 0,
         Blue        = 1,
@@ -46,41 +47,53 @@ pub mod colour {
 #[macro_export]
 macro_rules! format(
     ($($arg:tt)*) => (
-        format_args!(::util::io::fmt, $($arg)*)
+        format_args!($($arg)*)
     )
-)
+);
 
 // Define println! and print! macros, which write to Screen.
 
 #[macro_export]
 macro_rules! print(
-    ($fmt:expr $($arg:tt)*) => (
-        printto!(screen, $fmt $($arg)*)
+    ($fmt:expr) => (
+        printto!(mach::screen, $fmt)
+    );
+    ($fmt:expr, $($arg:tt)*) => (
+        printto!(mach::screen, $fmt $($arg)*)
     )
-)
+);
 
 #[macro_export]
 macro_rules! println(
-    ($fmt:expr $($arg:tt)*) => (
-        printlnto!(screen, $fmt $($arg)*)
+    ($fmt:expr) => (
+        printlnto!(mach::screen, $fmt)
+    );
+    ($fmt:expr, $($arg:tt)*) => (
+        printlnto!(mach::screen, $fmt $($arg)*)
     )
-)
+);
 
 // printlnto! and printto! macros take a method to call, in the form:
 // fn f<T: Trait>(m: &mut rustic::mach::MachineState, s: &str)
 
 #[macro_export]
 macro_rules! printto(
-    ($f:ident, $fmt:expr $($arg:tt)*) => ({
+    ($f:ident, $fmt:expr) => ({
+        $f(kernel_mut().machine_mut(), $fmt)
+    });
+    ($f:ident, $fmt:expr, $($arg:tt)*) => ({
         let x = format!($fmt $($arg)*);
-        $f(machine(), x.as_slice())
+        $f(kernel_mut().machine_mut(), x.as_slice())
     })
-)
+);
 
 #[macro_export]
 macro_rules! printlnto(
-    ($f:ident, $fmt:expr $($arg:tt)*) => ({
+    ($f:ident, $fmt:expr) => ({
+        $f(kernel_mut().machine_mut(), concat!($fmt, "\n"))
+    });
+    ($f:ident, $fmt:expr, $($arg:tt)*) => ({
         let x = format!(concat!($fmt, "\n") $($arg)*);
-        $f(machine(), x.as_slice())
-    })
-)
+        $f(kernel_mut().machine_mut(), x.as_slice())
+    });
+);

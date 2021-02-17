@@ -2,8 +2,7 @@
 # Variables defined before the inclusion of config.mk can be overridden in
 # config.mk in order to adjust how the build runs.
 
-RUST_ROOT :=
-LLVM_ROOT :=
+RUST_ROOT := $(shell realpath $${HOME}/.cargo)
 GCC_PREFIX := /usr/bin/
 
 MKISOFS := mkisofs
@@ -21,11 +20,11 @@ MORESTACK_ARCH := i386
 MACHINE := elf_i386
 
 # Set to the desired target for Rust and LLVM to use.
-TARGET := i386-unknown-linux-gnu
+TARGET := i686-unknown-linux-gnu
 
 # Set to 'true' if GNU as should be used (under $(GCC_PREFIX)) rather than clang
 # to assemble assembly code.
-USE_GCC_AS := false
+USE_GCC_AS := true
 
 # Set to 'gcc -E' if that makes more sense for the target.
 PREPROCESSOR := cpp
@@ -51,12 +50,15 @@ APPLICATION_PATH := $(SRCDIR)/src/example/example.rs
 # Path to linker script to use for the build. Default is good enough for x86.
 LINKER_SCRIPT := $(SRCDIR)/src/linker.ld
 
+# Override default shell (e.g. to avoid using dash)
+SHELL := /bin/bash
+
 # Override this to redefine the location of the config file.
 CONFIG ?= $(SRCDIR)/config.mk
 
 -include $(CONFIG)
 
-RUST_REPO := "https://github.com/mozilla/rust"
+RUST_REPO := "https://github.com/rust-lang/rust"
 
 LIBGCC := $(shell $(GCC_PREFIX)gcc -print-file-name=libgcc.a)
 
@@ -80,7 +82,7 @@ RUST_LIBS_STD := $(BUILDDIR)/libs/liblibc.rlib $(BUILDDIR)/libs/librustrt.rlib $
 CLANG := $(LLVM_ROOT)/bin/clang
 
 RC := $(RUST_ROOT)/bin/rustc
-RCFLAGS := -O -L $(LIBPATH) -L $(BUILDDIR) --target $(TARGET) -Z no-landing-pads $(RUSTIC_CONFIGS)
+RCFLAGS := -O -L $(LIBPATH) -L $(BUILDDIR) --target $(TARGET) -C panic=abort $(RUSTIC_CONFIGS)
 
 RUSTDOC := $(RUST_ROOT)/bin/rustdoc
 RUSTDOC_FLAGS := $(RUSTIC_CONFIGS)
@@ -90,14 +92,14 @@ CFLAGS := -O3
 
 LD := $(GCC_PREFIX)ld
 LDFLAGS := -m $(MACHINE) -flto --gc-sections -nostdlib -static -T$(LINKER_SCRIPT)
-LIBS := $(LIBGCC) -L$(LIBPATH) -L$(BUILDDIR) -lmorestack
+LIBS := $(LIBGCC) -L$(LIBPATH) -L$(BUILDDIR)
 
-AR := $(LLVM_ROOT)/bin/llvm-ar
+AR := $(LLVM_ROOT)/bin/ar
 CPP := $(GCC_PREFIX)$(PREPROCESSOR)
 
 ifeq ($(USE_GCC_AS), true)
 AS := $(GCC_PREFIX)gcc
-ASFLAGS :=
+ASFLAGS := -march=i686 -m32
 else
 AS := $(LLVM_ROOT)/bin/clang
 ASFLAGS := -O3 -target $(TARGET)
@@ -133,36 +135,18 @@ DYLD_LIBRARY_PATH := $(RUST_ROOT)/lib
 
 ################################################################################
 
-all: rust_src checkenv bootstrap runtime onlylibs rustic app
+all: checkenv onlylibs rustic app
 
 checkenv:
-	@[[ -d "$(RUST_CHECKOUT)" ]] || echo "Please set RUST_CHECKOUT to a valid directory."
 	@[[ -e "$(APPLICATION_PATH)" ]] || echo "APPLICATION_PATH is set to a file that does not exist."
-	@[[ -x "$(CC)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute GCC)."
-	@[[ -x "$(LD)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute LD)."
-	@[[ -x "$(RC)" ]] || echo "Please make sure RUST_ROOT is set correctly (can't execute the Rust compiler)."
-	@[[ -x "$(AR)" ]] || echo "Please make sure LLVM_ROOT is set correctly (can't execute llvm-ar)."
-
-# We need to have a bootstrap step to build a bootstrap runtime. In the
-# bootstrap runtime, libstd does not pull in the 'sync' or 'rustrt' crates,
-# both of which depend on libstd.
-bootstrap:
-	@[[ -e $(LIBSTD) ]] || (echo "Bootstrapping Rustic's Rust runtime..."; \
-	make -B -C . runtime RUSTIC_CONFIGS="$(RUSTIC_CONFIGS) --cfg bootstrap" CONFIG=$(CONFIG) -j1; \
-	echo "Bootstrap complete!")
-
-runtime: $(RUST_LIBS) $(LIBRUSTRT_NATIVE) $(RUST_LIBS_STD) $(LIBSTD)
+	@[[ -x "$(CC)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute $(CC))."
+	@[[ -x "$(LD)" ]] || echo "Please make sure GCC_PREFIX is set correctly (can't execute $(LD))."
+	@[[ -x "$(RC)" ]] || echo "Please make sure RUST_ROOT is set correctly (can't execute the Rust compiler at $(RC))."
+	@[[ -x "$(AR)" ]] || echo "Please make sure LLVM_ROOT is set correctly (can't execute $(AR))."
 
 rustic: $(LIBRUSTIC)
 
 app: $(KERNEL) $(ISO)
-
-ifeq ($(RUST_CHECKOUT), $(BUILDDIR)/rust)
-rust_src:
-	@[[ -e $(RUST_CHECKOUT) ]] && (cd $(RUST_CHECKOUT) && git pull) || (cd `dirname $(RUST_CHECKOUT)` && git clone $(RUST_REPO))
-else
-rust_src:
-endif
 
 ################################################################################
 
@@ -182,13 +166,13 @@ $(ISO): $(KERNEL)
 
 $(KERNEL): $(OBJS)
 	@echo "[LINK]" $@
-	@$(LD) $(LDFLAGS) -o $@ --whole-archive $^ --no-whole-archive $(LIBS)
+	@$(LD) $(LDFLAGS) -o $@ --whole-archive $^ --no-whole-archive $(LIBRUSTIC) $(LIBS)
 
 $(LIBRUSTIC): $(LIBRUSTIC_SRCS)
 	@-mkdir -p `dirname $@`
 	@echo "[RC  ]" $@
 	@-rm -f $@
-	@$(RC) --crate-type=lib $(RCFLAGS) -o $@ $^
+	@$(RC) --crate-type=staticlib $(RCFLAGS) -o $@ $^
 
 $(LIBSTD): $(LIBSTD_SRCS)
 	@-mkdir -p `dirname $@`

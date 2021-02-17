@@ -14,9 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use machine;
+use crate::kernel;
 
-use mach::{MachineState, IoPort, Serial, parity};
+use crate::mach::{MachineState, IoPort, Serial};
+use crate::mach::parity::Parity;
 
 enum Registers {
     RxTx = 0,
@@ -31,18 +32,18 @@ enum Registers {
 
 static SERIAL_BASE: u16 = 0x3F8;
 
-impl Serial for MachineState {
-    fn serial_config(&self, baud: int, dbits: int, parity: parity::Parity, sbits: int) {
+impl<'a> Serial<'a> for MachineState<'a> {
+    fn serial_config(&'a self, baud: i32, dbits: i32, parity: Parity, sbits: i32) {
         // Disable IRQs.
-        machine().outport(SERIAL_BASE + Inten as u16, 0 as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::Inten as u16, 0 as u8);
 
         // Enable DLAB to set the baud rate divisor.
-        machine().outport(SERIAL_BASE + LCtrl as u16, 0x80 as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::LCtrl as u16, 0x80 as u8);
 
         // Set the divisor for the given baud rate.
         let divisor = 115200 / baud;
-        machine().outport(SERIAL_BASE + RxTx as u16, (divisor & 0xF) as u8);
-        machine().outport(SERIAL_BASE + Inten as u16, ((divisor & 0xF0) >> 8) as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::RxTx as u16, (divisor & 0xF) as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::Inten as u16, ((divisor & 0xF0) >> 8) as u8);
 
         // Set data/stop bits and parity, which will also clear DLAB.
         let meta: u8 =
@@ -57,19 +58,19 @@ impl Serial for MachineState {
                 _ => 0b100,
             } |
             match parity {
-                parity::Odd   => 0b001000,
-                parity::Even  => 0b011000,
-                parity::Mark  => 0b101000,
-                parity::Space => 0b111000,
+                Parity::Odd   => 0b001000,
+                Parity::Even  => 0b011000,
+                Parity::Mark  => 0b101000,
+                Parity::Space => 0b111000,
                 _     => 0,
             };
-        machine().outport(SERIAL_BASE + LCtrl as u16, meta);
+        kernel().machine().outport(SERIAL_BASE + Registers::LCtrl as u16, meta);
 
         // Enable and clear the FIFO.
-        machine().outport(SERIAL_BASE + IIFifo as u16, 0xC7 as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::IIFifo as u16, 0xC7 as u8);
 
         // Set RTS/DSR, and enable IRQs for if/when INTEN == 1.
-        machine().outport(SERIAL_BASE + MCtrl as u16, 0x0B as u8);
+        kernel().machine().outport(SERIAL_BASE + Registers::MCtrl as u16, 0x0B as u8);
     }
 
     fn serial_write(&self, s: &str) {
@@ -86,20 +87,20 @@ impl Serial for MachineState {
     fn serial_read_char(&self) -> char {
         // Wait until bytes are pending in the FIFO.
         loop {
-            let status: u8 = machine().inport(SERIAL_BASE + LStat as u16);
+            let status: u8 = kernel().machine().inport(SERIAL_BASE + Registers::LStat as u16);
             if (status & 0x1) != 0 {
                 break;
             }
         }
 
-        let result: u8 = machine().inport(SERIAL_BASE + RxTx as u16);
+        let result: u8 = kernel().machine().inport(SERIAL_BASE + Registers::RxTx as u16);
         result as char
     }
 
     fn serial_write_char(&self, c: char) {
         // Wait until we are permitted to write.
         loop {
-            let status: u8 = machine().inport(SERIAL_BASE + LStat as u16);
+            let status: u8 = kernel().machine().inport(SERIAL_BASE + Registers::LStat as u16);
             if (status & 0x20) != 0 {
                 break;
             }
@@ -107,10 +108,10 @@ impl Serial for MachineState {
 
         // char -> UTF-8 conversion; we must use the length return value rather
         // than iteration as the number of bytes to write is not static.
-        let mut bytes = [0u8, .. 6];
-        let length = c.encode_utf8(bytes); 
-        for index in range(0, length) {
-            machine().outport(SERIAL_BASE + RxTx as u16, bytes[index]);
+        let mut bytes = [0u8; 6];
+        let encoded = c.encode_utf8(&mut bytes);
+        for index in 0..encoded.len() {
+            kernel().machine().outport(SERIAL_BASE + Registers::RxTx as u16, bytes[index]);
         }
     }
 }

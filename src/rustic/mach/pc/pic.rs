@@ -17,133 +17,132 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use arch::{Architecture, TrapHandler};
+use crate::arch::{Architecture, TrapHandler};
 
-use mach;
+use crate::mach;
+use crate::mach::{IoPort, Serial};
 
-use mach::{IoPort, Serial};
+use crate::kernel;
+use crate::kernel_mut;
 
-use architecture;
-use machine;
-
-struct IrqHandler {
-    f: Option<Rc<RefCell<Box<mach::IrqHandler>>>>,
+struct IrqHandler<'a> {
+    f: &'a dyn mach::IrqHandler,
     level: bool,
 }
 
-pub static RemapBase: uint = 0x20;
-
-pub struct Pic {
-    irqhandlers: [Option<IrqHandler>, ..16],
-}
-
-impl IrqHandler {
-    fn new() -> IrqHandler {
-        IrqHandler{f: None, level: false}
+impl<'a> IrqHandler<'a> {
+    fn call(&'a self, irqnum: usize) {
+        self.f.irq(irqnum);
     }
 }
 
-impl Pic {
-    pub fn new() -> Pic {
+pub static RemapBase: usize = 0x20;
+
+pub struct Pic<'a> {
+    irqhandlers: [Option<IrqHandler<'a>>; 16],
+}
+
+impl<'a> Pic<'a> {
+    pub fn new() -> Pic<'a> {
         Pic{irqhandlers: [None, None, None, None, None, None, None, None,
                           None, None, None, None, None, None, None, None]}
     }
 
-    pub fn init() -> Pic {
+    pub fn init() -> Pic<'a> {
         let result = Pic{irqhandlers: [None, None, None, None, None, None, None,
                                        None, None, None, None, None, None, None,
                                        None, None]};
 
-        machine().outport(0x20, 0x11u8);
-        machine().outport(0xA0, 0x11u8);
-        machine().outport(0x21, RemapBase as u8); // Remap to start at the remap base.
-        machine().outport(0xA1, (RemapBase + 8) as u8);
-        machine().outport(0x21, 0x04u8);
-        machine().outport(0xA1, 0x02u8);
-        machine().outport(0x21, 0x01u8);
-        machine().outport(0xA1, 0x01u8);
+        kernel().machine().outport(0x20, 0x11u8);
+        kernel().machine().outport(0xA0, 0x11u8);
+        kernel().machine().outport(0x21, RemapBase as u8); // Remap to start at the remap base.
+        kernel().machine().outport(0xA1, (RemapBase + 8) as u8);
+        kernel().machine().outport(0x21, 0x04u8);
+        kernel().machine().outport(0xA1, 0x02u8);
+        kernel().machine().outport(0x21, 0x01u8);
+        kernel().machine().outport(0xA1, 0x01u8);
 
         // Mask all, machine layer will call our enable() when an IRQ is registered.
-        machine().outport(0x21, 0xFFu8);
-        machine().outport(0xA1, 0xFFu8);
+        kernel().machine().outport(0x21, 0xFFu8);
+        kernel().machine().outport(0xA1, 0xFFu8);
 
         result
     }
 
-    pub fn remap_base() -> uint {
+    pub fn remap_base() -> usize {
         return RemapBase;
     }
 
-    pub fn irq_count() -> uint {
+    pub fn irq_count() -> usize {
         return 16;
     }
 
-    pub fn register(&mut self, irq: uint, f: Rc<RefCell<Box<mach::IrqHandler>>>, level: bool) {
-        let irqhandler = IrqHandler{f: Some(f), level: level};
+    pub fn register(&'a mut self, irq: usize, f: &'a dyn mach::IrqHandler, level: bool) {
+        let irqhandler = IrqHandler{f: f, level: level};
         self.irqhandlers[irq] = Some(irqhandler);
 
-        architecture().register_trap(irq + RemapBase, irq_stub);
+        kernel_mut().architecture_mut().register_trap(irq + RemapBase, irq_stub);
     }
 
-    pub fn enable(&self, line: uint) {
+    pub fn enable(&self, line: usize) {
         if line > 7 {
             let actual = line - 8;
-            let curr: u8 = machine().inport(0xA1);
+            let curr: u8 = kernel().machine().inport(0xA1);
             let flag: u8 = 1 << actual;
-            machine().outport(0xA1, curr & !flag)
+            kernel().machine().outport(0xA1, curr & !flag)
         } else {
-            let curr: u8 = machine().inport(0x21);
+            let curr: u8 = kernel().machine().inport(0x21);
             let flag: u8 = 1 << line;
-            machine().outport(0x21, curr & !flag)
+            kernel().machine().outport(0x21, curr & !flag)
         }
     }
 
-    pub fn disable(&self, line: uint) {
+    pub fn disable(&self, line: usize) {
         if line > 7 {
             let actual = line - 8;
-            let curr: u8 = machine().inport(0xA1);
+            let curr: u8 = kernel().machine().inport(0xA1);
             let flag: u8 = 1 << actual;
-            machine().outport(0xA1, curr | flag)
+            kernel().machine().outport(0xA1, curr | flag)
         } else {
-            let curr: u8 = machine().inport(0x21);
+            let curr: u8 = kernel().machine().inport(0x21);
             let flag: u8 = 1 << line;
-            machine().outport(0x21, curr | flag)
+            kernel().machine().outport(0x21, curr | flag)
         }
     }
 
-    fn eoi(&self, n: uint) {
-        if n > 7 { machine().outport(0xA0, 0x20u8); }
-        machine().outport(0x20, 0x20u8);
+    fn eoi(&self, n: usize) {
+        if n > 7 { kernel().machine().outport(0xA0, 0x20u8); }
+        kernel().machine().outport(0x20, 0x20u8);
     }
 }
 
-impl TrapHandler for Pic {
-    fn trap(&mut self, num: uint) {
+impl TrapHandler for Pic<'_> {
+    fn trap(&mut self, num: usize) {
         let irqnum = num - RemapBase;
 
         // Get status registers for master/slave
-        machine().outport(0x20, 0x0Bu8);
-        machine().outport(0xA0, 0x0Bu8);
-        let slaveisr: u8 = machine().inport(0xA0);
-        let masterisr: u8 = machine().inport(0x20);
-        let isr: u16 = (slaveisr as u16 << 8) | masterisr as u16;
+        kernel().machine().outport(0x20, 0x0Bu8);
+        kernel().machine().outport(0xA0, 0x0Bu8);
+        let slaveisr: u8 = kernel().machine().inport(0xA0);
+        let masterisr: u8 = kernel().machine().inport(0x20);
+        let isr: u16 = ((slaveisr as u16) << 8) | (masterisr as u16);
 
         // Spurious IRQ?
         if irqnum == 7 {
             if (isr & (1 << 7)) == 0 {
-                machine().serial_write("spurious IRQ 7\n");
+                kernel().machine().serial_write("spurious IRQ 7\n");
                 return;
             }
         } else if irqnum == 15 {
             if (isr & (1 << 15)) == 0 {
-                machine().serial_write("spurious IRQ 15\n");
+                kernel().machine().serial_write("spurious IRQ 15\n");
                 self.eoi(7);
                 return;
             }
         }
 
         if (isr & (1 << irqnum)) == 0 {
-            machine().serial_write("IRQ stub called with no interrupt status");
+            kernel().machine().serial_write("IRQ stub called with no interrupt status");
             return;
         }
 
@@ -154,18 +153,7 @@ impl TrapHandler for Pic {
                     self.eoi(irqnum);
                 }
 
-                match handler.f {
-                    Some(ref f) => {
-                        let handler = f.try_borrow_mut();
-                        match handler {
-                            Some(mut x) => x.irq(irqnum),
-                            None => {
-                                machine().serial_write("!! dropping IRQ because borrowing handler out of RefCell failed!")
-                            },
-                        }
-                    },
-                    None => {},
-                };
+                handler.call(irqnum);
 
                 if handler.level == true {
                     self.eoi(irqnum);
@@ -173,13 +161,14 @@ impl TrapHandler for Pic {
             },
             None => {
                 // Unhandled IRQ, just send the EOI and hope all's well.
-                machine().serial_write("Unhandled IRQ");
+                kernel().machine().serial_write("Unhandled IRQ");
                 self.eoi(irqnum);
             }
         };
     }
 }
 
-fn irq_stub(which: uint) {
-    machine().state.irq_ctlr.trap(which)
+fn irq_stub(which: usize) {
+    // TODO: this happens in a different execution context and might be unsafe?
+    kernel_mut().machine_mut().state.irq_ctlr.trap(which)
 }

@@ -14,5 +14,5 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#[cfg(arch_i386)]
+#[cfg(feature="arch_i386")]
 pub use super::i386::State;

@@ -15,7 +15,6 @@
  */
 
 use std::fmt;
-use std::slice::Vector;
 
 use std::string;
 
@@ -28,7 +27,7 @@ impl MemBuffer {
         MemBuffer::with_capacity(128)
     }
 
-    pub fn with_capacity(n: uint) -> MemBuffer {
+    pub fn with_capacity(n: usize) -> MemBuffer {
         MemBuffer{buf: Vec::with_capacity(n)}
     }
 
@@ -37,15 +36,15 @@ impl MemBuffer {
     pub fn unwrap(self) -> Vec<u8> { self.buf }
 }
 
-impl fmt::FormatWriter for MemBuffer {
-    fn write(&mut self, buf: &[u8]) -> fmt::Result {
-        self.buf.push_all(buf);
+impl fmt::Write for MemBuffer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.buf.extend(s.bytes());
         Ok(())
     }
 }
 
 pub fn fmt(args: &fmt::Arguments) -> string::String {
     let mut output = MemBuffer::new();
-    let _ = fmt::write(&mut output, args);
+    let _ = fmt::write(&mut output, *args);
     string::String::from_utf8(output.unwrap()).unwrap()
 }

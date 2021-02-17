@@ -14,13 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#[cfg(arch_i386)]
+#[cfg(feature="arch_i386")]
 mod i386;
 
-#[cfg(arch_armv6)]
+#[cfg(feature="arch_armv6")]
 mod armv6;
 
-#[cfg(arch_armv7)]
+#[cfg(feature="arch_armv7")]
 mod armv7;
 
 // State module pulls in architecture-specific state type as 'State' type.
@@ -29,16 +29,16 @@ mod state;
 pub trait Architecture {
     fn initialise(&mut self) -> bool;
 
-    fn register_trap(&mut self, uint, extern "Rust" fn(uint));
+    fn register_trap(&mut self, num: usize, f: extern "Rust" fn(usize));
 
     fn get_interrupts(&self) -> bool;
-    fn set_interrupts(&mut self, bool);
+    fn set_interrupts(&mut self, state: bool);
 
     fn wait_for_event(&self);
 }
 
 pub trait Threads {
-    fn spawn_thread(&mut self, proc());
+    fn spawn_thread(&mut self, f: fn());
 
     fn thread_terminate(&mut self) -> !;
 
@@ -47,7 +47,7 @@ pub trait Threads {
 }
 
 pub trait TrapHandler {
-    fn trap(&mut self, num: uint);
+    fn trap(&mut self, num: usize);
 }
 
 pub struct ArchitectureState {
@@ -61,6 +61,6 @@ impl ArchitectureState {
     }
 }
 
-pub fn create() -> Box<ArchitectureState> {
-    box ArchitectureState::new()
+pub fn create() -> ArchitectureState {
+    ArchitectureState::new()
 }

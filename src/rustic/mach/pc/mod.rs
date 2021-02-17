@@ -19,7 +19,8 @@ use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
 
-use mach::{IrqHandler, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio, parity};
+use crate::mach::{IrqHandler, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
+use crate::mach::parity::Parity;
 
 mod kb;
 mod pic;
@@ -27,16 +28,16 @@ mod pit;
 mod serial;
 mod vga;
 
-pub struct State {
-    irq_ctlr: pic::Pic,
+pub struct State<'a> {
+    irq_ctlr: pic::Pic<'a>,
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
     screen: vga::Vga,
-    timer_handlers: Vec<extern "Rust" fn(uint)>,
+    timer_handlers: Vec<extern "Rust" fn(usize)>,
 }
 
-impl State {
-    pub fn new() -> State {
+impl<'a> State<'a> {
+    pub fn new() -> State<'a> {
         State{irq_ctlr: pic::Pic::new(),
               timer: pit::Pit::new(),
               keyboard: kb::PS2Keyboard::new(),
@@ -45,10 +46,10 @@ impl State {
     }
 }
 
-impl Machine for MachineState {
+impl<'a> Machine<'a> for MachineState<'a> {
     fn initialise(&mut self) -> bool {
         // Configure serial port.
-        self.serial_config(115200, 8, parity::NoParity, 1);
+        self.serial_config(115200, 8, Parity::NoParity, 1);
 
         // Bring up the PIC.
         self.state.irq_ctlr = pic::Pic::init();
@@ -60,10 +61,9 @@ impl Machine for MachineState {
         self.state.keyboard = kb::PS2Keyboard::init();
 
         // Register the PIT and keyboard IRQs.
-        let timer_irq = Rc::new(RefCell::new(box self.state.timer as Box<IrqHandler>));
-        let keyboard_irq = Rc::new(RefCell::new(box self.state.keyboard as Box<IrqHandler>));
-        self.register_irq(pit::Pit::irq_num(), timer_irq, true);
-        self.register_irq(kb::PS2Keyboard::irq_num(), keyboard_irq, true);
+        // TODO: fix these borrows
+        //self.register_irq(pit::Pit::irq_num(), &self.state.timer, true);
+        //self.register_irq(kb::PS2Keyboard::irq_num(), &self.state.keyboard, true);
 
         // Set up the VGA screen.
         self.state.screen.init();
@@ -73,18 +73,25 @@ impl Machine for MachineState {
         self.initialised
     }
 
-    fn register_irq(&mut self, irq: uint, f: Rc<RefCell<Box<IrqHandler>>>, level_trigger: bool) {
+    fn register_irq(&'a mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool) {
         self.state.irq_ctlr.register(irq, f, level_trigger);
+    }
+
+    fn enable_irq(&self, irq: usize) {
         self.state.irq_ctlr.enable(irq);
+    }
+
+    fn disable_irq(&self, irq: usize) {
+        self.state.irq_ctlr.disable(irq);
     }
 }
 
-impl TimerHandlers for MachineState {
-    fn register_timer(&mut self, f: extern "Rust" fn(uint)) {
+impl<'a> TimerHandlers for MachineState<'a> {
+    fn register_timer(&mut self, f: extern "Rust" fn(usize)) {
         self.state.timer_handlers.push(f);
     }
 
-    fn timer_fired(&mut self, ms: uint) {
+    fn timer_fired(&mut self, ms: usize) {
         for h in self.state.timer_handlers.iter() {
             let handler = *h;
             handler(ms);
@@ -92,35 +99,35 @@ impl TimerHandlers for MachineState {
     }
 }
 
-impl Keyboard for MachineState {
+impl<'a> Keyboard for MachineState<'a> {
     fn kb_leds(&mut self, state: u8) {
         self.state.keyboard.leds(state)
     }
 }
 
-impl IoPort for MachineState {
-    fn outport<T: Int>(&self, port: u16, val: T) {
+impl<'a> IoPort for MachineState<'a> {
+    fn outport<T>(&self, port: u16, val: T) {
         unsafe {
-            asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
+            llvm_asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
         }
     }
 
-    fn inport<T: Int + Default>(&self, port: u16) -> T {
+    fn inport<T: Default>(&self, port: u16) -> T {
         unsafe {
             let mut val: T;
-            asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
+            llvm_asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
             val
         }
     }
 }
 
-impl Mmio for MachineState {
-    fn mmio_write<T>(&self, address: uint, val: T) {
+impl<'a> Mmio for MachineState<'a> {
+    fn mmio_write<T>(&self, address: u32, val: T) {
         let ptr = address as *mut T;
         unsafe { std::ptr::write(ptr, val) };
     }
 
-    fn mmio_read<T>(&self, address: uint) -> T {
+    fn mmio_read<T>(&self, address: u32) -> T {
         let ptr = address as *const T;
         unsafe { std::ptr::read(ptr) }
     }

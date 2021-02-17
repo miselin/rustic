@@ -1,10 +1,10 @@
 
-use libc;
-use sync::atomics;
+/*
+use std::sync::atomic;
 
-use arch::Threads;
+use crate::arch::Threads;
 
-use architecture;
+use crate::kernel_mut;
 
 #[no_mangle]
 pub extern "C" fn strlen(_: *const libc::c_char) -> libc::size_t {
@@ -18,42 +18,39 @@ pub extern "C" fn write(_: libc::c_int, _: *const libc::c_void, _: libc::size_t)
 
 #[no_mangle]
 pub extern "C" fn sched_yield() {
-    architecture().reschedule();
+    kernel_mut().architecture_mut().reschedule();
 }
 
 #[allow(non_camel_case_types)]
-struct pthread_mutex_t {
+pub struct pthread_mutex_t {
     ready: bool,
-    value: atomics::AtomicUint,
+    value: atomic::AtomicUsize,
 }
 
 #[allow(non_camel_case_types)]
-struct pthread_cond_t {
-    value: atomics::AtomicUint,
+pub struct pthread_cond_t {
+    value: atomic::AtomicUsize,
 }
 
 fn check_mutex(l: *mut pthread_mutex_t) {
     let lock = unsafe { &mut *l };
     if !lock.ready {
-        lock.value = atomics::AtomicUint::new(0);
+        lock.value = atomic::AtomicUsize::new(0);
         lock.ready = true;
     }
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_mutex_destroy(lock: *mut pthread_mutex_t) -> libc::c_int {
     pthread_mutex_unlock(lock);
     0
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_cond_destroy(_: *mut pthread_cond_t) -> libc::c_int {
     0
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_mutex_lock(lock: *mut pthread_mutex_t) -> libc::c_int {
     // TODO(miselin): we really want to actually sleep the thread and wake it
@@ -64,38 +61,35 @@ pub extern "C" fn pthread_mutex_lock(lock: *mut pthread_mutex_t) -> libc::c_int 
     0
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_mutex_trylock(l: *mut pthread_mutex_t) -> libc::c_int {
     check_mutex(l);
 
     let lock = unsafe { &mut *l };
-    if lock.value.compare_and_swap(0, 1, atomics::SeqCst) == 0 {
+    if lock.value.compare_exchange(0, 1, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst).is_ok() {
         -1
     } else {
         0
     }
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_mutex_unlock(l: *mut pthread_mutex_t) -> libc::c_int {
     check_mutex(l);
 
     let lock = unsafe { &mut *l };
-    lock.value.compare_and_swap(1, 0, atomics::SeqCst);
+    while !lock.value.compare_exchange(1, 0, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst).is_ok() {}
     0
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_cond_wait(_: *mut pthread_cond_t, _: *mut pthread_mutex_t) -> libc::c_int {
     0
 }
 
-#[allow(visible_private_types)]
 #[no_mangle]
 pub extern "C" fn pthread_cond_signal(_: *mut pthread_cond_t) -> libc::c_int {
     0
 }
 
+*/

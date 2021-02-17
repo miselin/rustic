@@ -14,17 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std;
+type GdtTable = [GdtEntry; 16];
 
-type GdtTable = [GdtEntry, ..16];
-
-#[packed]
+#[repr(C, packed)]
 struct GdtRegister {
     limit: u16,
     addr: *const GdtTable,
 }
 
-#[packed]
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
 struct GdtEntry {
     limit_low: u16,
     base_low: u16,
@@ -42,10 +41,10 @@ pub struct Gdt {
 
 impl Gdt {
     pub fn new() -> Gdt {
-        Gdt{table: [GdtEntry::new(), ..16], reg: GdtRegister::new(0 as *const GdtTable)}
+        Gdt{table: [GdtEntry::new(); 16], reg: GdtRegister::new(0 as *const GdtTable)}
     }
 
-    pub fn entry(&mut self, index: uint, base: uint, limit: uint, access: u8, gran: u8) {
+    pub fn entry(&mut self, index: usize, base: u32, limit: u32, access: u8, gran: u8) {
         self.table[index] = GdtEntry::create(base, limit, access, gran);
     }
 
@@ -69,7 +68,7 @@ impl GdtEntry {
         GdtEntry{limit_low: 0, base_low: 0, base_mid: 0, access: 0, gran: 0, base_high: 0}
     }
 
-    fn create(base: uint, limit: uint, access: u8, gran: u8) -> GdtEntry {
+    fn create(base: u32, limit: u32, access: u8, gran: u8) -> GdtEntry {
         GdtEntry {
             limit_low: (limit & 0xFFFF) as u16,
             base_low: (base & 0xFFFF) as u16,
@@ -83,15 +82,16 @@ impl GdtEntry {
 
 #[inline(never)]
 fn load_gdt(reg: *const GdtRegister, codeseg: u16, dataseg: u16, tlsemulseg: u16) {
-    unsafe { asm!(" \
+    // TODO: use RFC 2873 asm! syntax
+    unsafe { llvm_asm!(" \
         lgdt ($0); \
-        jmp $1, $$g; \
+        ljmp $$0x08, $$g; \
         g: \
-        mov $2, %ax; \
-        mov %ax, %ds; \
-        mov %ax, %es; \
-        mov %ax, %fs; \
-        mov %ax, %ss; \
-        mov $3, %ax; \
-        mov %ax, %gs;" :: "r" (reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
+        movw $2, %ax; \
+        movw %ax, %ds; \
+        movw %ax, %es; \
+        movw %ax, %fs; \
+        movw %ax, %ss; \
+        movw $3, %ax; \
+        movw %ax, %gs;" :: "r" (reg), "Ir" (codeseg), "Ir" (dataseg), "Ir" (tlsemulseg) : "ax"); }
 }

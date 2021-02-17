@@ -14,19 +14,18 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use util::colour;
+use crate::util::colour;
 
-#[cfg(plat_pc)]
+#[cfg(feature="plat_pc")]
 mod pc;
 
-#[cfg(plat_beagle)]
+#[cfg(feature="plat_beagle")]
 mod beagle;
 
-#[cfg(plat_rpi)]
+#[cfg(feature="plat_rpi")]
 mod rpi;
 
 // Pull in the 'state' module - this defines the State type as the correct
@@ -43,14 +42,18 @@ pub mod parity {
     }
 }
 
-pub trait Machine {
+pub trait Machine<'a> {
     fn initialise(&mut self) -> bool;
 
-    fn register_irq(&mut self, irq: uint, f: Rc<RefCell<Box<IrqHandler>>>, level_trigger: bool);
+    fn register_irq(&'a mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool);
+
+    // Mask or unmask the given IRQ using the machine-specific implementation.
+    fn enable_irq(&self, irq: usize);
+    fn disable_irq(&self, irq: usize);
 }
 
 pub trait IrqHandler {
-    fn irq(&mut self, irqnum: uint);
+    fn irq(&self, irqnum: usize);
 }
 
 pub trait Keyboard {
@@ -58,22 +61,22 @@ pub trait Keyboard {
 }
 
 pub trait TimerHandlers {
-    fn register_timer(&mut self, extern "Rust" fn(uint));
-    fn timer_fired(&mut self, uint);
+    fn register_timer(&mut self, f: extern "Rust" fn(usize));
+    fn timer_fired(&mut self, ticks: usize);
 }
 
 pub trait Gpio {
-    fn gpio_write(&mut self, pin: uint, value: bool);
-    fn gpio_read(&mut self, pin: uint) -> bool;
+    fn gpio_write(&mut self, pin: u32, value: bool);
+    fn gpio_read(&mut self, pin: u32) -> bool;
 }
 
 pub trait IoPort {
-    fn outport<T: Int>(&self, port: u16, val: T);
-    fn inport<T: Int + std::default::Default>(&self, port: u16) -> T;
+    fn outport<T>(&self, port: u16, val: T);
+    fn inport<T: std::default::Default>(&self, port: u16) -> T;
 }
 
-pub trait Serial {
-    fn serial_config(&self, baud: int, data_bits: int, parity: parity::Parity, stop_bits: int);
+pub trait Serial<'a> {
+    fn serial_config(&'a self, baud: i32, data_bits: i32, parity: parity::Parity, stop_bits: i32);
     fn serial_write(&self, s: &str);
     fn serial_read_char(&self) -> char;
     fn serial_write_char(&self, c: char);
@@ -83,12 +86,12 @@ pub trait Screen {
     fn screen_clear(&self);
     fn screen_fill(&self, with: char);
 
-    fn screen_cols(&self) -> uint;
-    fn screen_rows(&self) -> uint;
+    fn screen_cols(&self) -> u32;
+    fn screen_rows(&self) -> u32;
 
     fn screen_save_cursor(&mut self);
     fn screen_restore_cursor(&mut self);
-    fn screen_cursor(&mut self, x: uint, y: uint);
+    fn screen_cursor(&mut self, x: u32, y: u32);
 
     fn screen_save_attrib(&mut self);
     fn screen_restore_attrib(&mut self);
@@ -99,23 +102,23 @@ pub trait Screen {
 }
 
 pub trait Mmio {
-    fn mmio_write<T>(&self, address: uint, val: T);
-    fn mmio_read<T>(&self, address: uint) -> T;
+    fn mmio_write<T>(&self, address: u32, val: T);
+    fn mmio_read<T>(&self, address: u32) -> T;
 }
 
-pub struct MachineState {
+pub struct MachineState<'a> {
     initialised: bool,
-    state: state::State,
+    state: state::State<'a>,
 }
 
-impl MachineState {
-    fn new() -> MachineState {
+impl<'a> MachineState<'a> {
+    fn new() -> MachineState<'a> {
         MachineState{initialised: false, state: state::State::new()}
     }
 }
 
-pub fn create() -> Box<MachineState> {
-    box MachineState::new()
+pub fn create<'a>() -> MachineState<'a> {
+    MachineState::new()
 }
 
 // Helpers.
@@ -124,6 +127,6 @@ pub fn screen<T: Screen>(m: &mut T, s: &str) {
     m.screen_write(s);
 }
 
-pub fn serial<T: Serial>(m: &mut T, s: &str) {
+pub fn serial<'a, T: Serial<'a>>(m: &mut T, s: &str) {
     m.serial_write(s);
 }

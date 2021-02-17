@@ -17,12 +17,12 @@
 use std;
 
 // TODO: write a proper allocator, prime with multiboot memory map.
-static mut HeapBase: uint = 0x200000;
+static mut HeapBase: u32 = 0x200000;
 
 pub fn allocate<T>() -> *mut T {
     unsafe {
-        let ptr = alloc(std::mem::size_of::<T>(), 4) as *mut T;
-        std::ptr::zero_memory(ptr, 1);
+        let ptr = alloc(std::mem::size_of::<T>() as u32, 4) as *mut T;
+        std::ptr::write_bytes(ptr, 0, 1);
         ptr
     }
 }
@@ -31,13 +31,13 @@ pub fn deallocate<T>(p: *const T) {
     unsafe { free(p as *const u8); }
 }
 
-pub unsafe fn alloc(sz: uint, _: uint) -> *mut u8 {
+pub unsafe fn alloc(sz: u32, _: u32) -> *mut u8 {
     // TODO: handle alignment.
-    let uint_size = std::mem::size_of::<uint>();
+    let uint_size = std::mem::size_of::<u32>() as u32;
     let object_size = sz;
 
     let ret = (HeapBase + uint_size) as *mut u8;
-    let tag = HeapBase as *mut uint;
+    let tag = HeapBase as *mut u32;
 
     HeapBase += uint_size + object_size;
 
@@ -46,7 +46,7 @@ pub unsafe fn alloc(sz: uint, _: uint) -> *mut u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn malloc(sz: uint) -> *mut u8 {
+pub extern "C" fn malloc(sz: u32) -> *mut u8 {
     unsafe { alloc(sz, 4) }
 }
 
@@ -60,7 +60,7 @@ pub unsafe fn free(_: *const u8) {
 }
 
 #[no_mangle]
-pub extern "C" fn posix_memalign(memptr: *mut *mut u8, alignment: uint, sz: uint) -> int {
+pub extern "C" fn posix_memalign(memptr: *mut *mut u8, alignment: u32, sz: u32) -> i32 {
     unsafe { *memptr = alloc(sz, alignment) };
     0
 }
