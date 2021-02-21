@@ -12,6 +12,9 @@ SRCDIR := $(shell pwd)
 # Directory in which built object files will be placed (if not $(SRCDIR)/build).
 BUILDDIR := $(SRCDIR)/build
 
+# Directory in which GRUB and other image files are read from
+IMAGESDIR := $(SRCDIR)/images
+
 # Override default shell (e.g. to avoid using dash)
 SHELL := /bin/bash
 

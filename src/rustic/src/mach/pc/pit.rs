@@ -14,10 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use crate::mach::{IrqHandler, TimerHandlers, IoPort};
-
-use crate::kernel;
-use crate::kernel_mut;
+use crate::Kernel;
+use crate::mach::{IrqHandler, HardwareTimer, TimerHandlers, IoPort};
 
 static BaseFrequency: usize = 1193180;
 
@@ -30,28 +28,27 @@ impl Pit {
         Pit{timer_hz: 0}
     }
 
-    pub fn init(hz: usize) -> Pit {
-        let mut state = Pit::new();
-
-        state.timer_hz = hz;
-
-        // Program periodic mode, with our desired divisor for the given
-        // frequency (in hertz).
-        let div = BaseFrequency / state.timer_hz;
-        kernel().machine().outport(0x43, 0x36u8);
-        kernel().machine().outport(0x40, (div & 0xFF) as u8);
-        kernel().machine().outport(0x40, ((div >> 8) & 0xFF) as u8);
-
-        state
-    }
-
     pub fn irq_num() -> usize {
         0
     }
 }
 
+impl<'a> HardwareTimer for Kernel<'a> {
+    fn init_timers(&mut self, freq: usize) {
+        self.mach.state.timer.timer_hz = freq;
+
+        // Program periodic mode, with our desired divisor for the given
+        // frequency (in hertz).
+        let div = BaseFrequency / freq;
+        self.outport(0x43, 0x36u8);
+        self.outport(0x40, (div & 0xFF) as u8);
+        self.outport(0x40, ((div >> 8) & 0xFF) as u8);
+    }
+}
+
 impl IrqHandler for Pit {
     fn irq(&self, _: usize) {
-        kernel_mut().machine_mut().timer_fired(1000 / self.timer_hz);
+        // todo
+        // kernel_mut().machine_mut().timer_fired(1000 / self.timer_hz);
     }
 }

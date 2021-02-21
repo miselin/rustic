@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use crate::kernel;
+use crate::Kernel;
 
 use crate::mach::{MachineState, IoPort, Serial};
 use crate::mach::parity::Parity;
@@ -32,18 +32,18 @@ enum Registers {
 
 static SERIAL_BASE: u16 = 0x3F8;
 
-impl<'a> Serial<'a> for MachineState<'a> {
+impl<'a> Serial<'a> for Kernel<'a> {
     fn serial_config(&'a self, baud: i32, dbits: i32, parity: Parity, sbits: i32) {
         // Disable IRQs.
-        kernel().machine().outport(SERIAL_BASE + Registers::Inten as u16, 0 as u8);
+        self.outport(SERIAL_BASE + Registers::Inten as u16, 0 as u8);
 
         // Enable DLAB to set the baud rate divisor.
-        kernel().machine().outport(SERIAL_BASE + Registers::LCtrl as u16, 0x80 as u8);
+        self.outport(SERIAL_BASE + Registers::LCtrl as u16, 0x80 as u8);
 
         // Set the divisor for the given baud rate.
         let divisor = 115200 / baud;
-        kernel().machine().outport(SERIAL_BASE + Registers::RxTx as u16, (divisor & 0xF) as u8);
-        kernel().machine().outport(SERIAL_BASE + Registers::Inten as u16, ((divisor & 0xF0) >> 8) as u8);
+        self.outport(SERIAL_BASE + Registers::RxTx as u16, (divisor & 0xF) as u8);
+        self.outport(SERIAL_BASE + Registers::Inten as u16, ((divisor & 0xF0) >> 8) as u8);
 
         // Set data/stop bits and parity, which will also clear DLAB.
         let meta: u8 =
@@ -62,15 +62,15 @@ impl<'a> Serial<'a> for MachineState<'a> {
                 Parity::Even  => 0b011000,
                 Parity::Mark  => 0b101000,
                 Parity::Space => 0b111000,
-                _     => 0,
+                _             => 0,
             };
-        kernel().machine().outport(SERIAL_BASE + Registers::LCtrl as u16, meta);
+        self.outport(SERIAL_BASE + Registers::LCtrl as u16, meta);
 
         // Enable and clear the FIFO.
-        kernel().machine().outport(SERIAL_BASE + Registers::IIFifo as u16, 0xC7 as u8);
+        self.outport(SERIAL_BASE + Registers::IIFifo as u16, 0xC7 as u8);
 
         // Set RTS/DSR, and enable IRQs for if/when INTEN == 1.
-        kernel().machine().outport(SERIAL_BASE + Registers::MCtrl as u16, 0x0B as u8);
+        self.outport(SERIAL_BASE + Registers::MCtrl as u16, 0x0B as u8);
     }
 
     fn serial_write(&self, s: &str) {
@@ -87,20 +87,20 @@ impl<'a> Serial<'a> for MachineState<'a> {
     fn serial_read_char(&self) -> char {
         // Wait until bytes are pending in the FIFO.
         loop {
-            let status: u8 = kernel().machine().inport(SERIAL_BASE + Registers::LStat as u16);
+            let status: u8 = self.inport(SERIAL_BASE + Registers::LStat as u16);
             if (status & 0x1) != 0 {
                 break;
             }
         }
 
-        let result: u8 = kernel().machine().inport(SERIAL_BASE + Registers::RxTx as u16);
+        let result: u8 = self.inport(SERIAL_BASE + Registers::RxTx as u16);
         result as char
     }
 
     fn serial_write_char(&self, c: char) {
         // Wait until we are permitted to write.
         loop {
-            let status: u8 = kernel().machine().inport(SERIAL_BASE + Registers::LStat as u16);
+            let status: u8 = self.inport(SERIAL_BASE + Registers::LStat as u16);
             if (status & 0x20) != 0 {
                 break;
             }
@@ -111,7 +111,7 @@ impl<'a> Serial<'a> for MachineState<'a> {
         let mut bytes = [0u8; 6];
         let encoded = c.encode_utf8(&mut bytes);
         for index in 0..encoded.len() {
-            kernel().machine().outport(SERIAL_BASE + Registers::RxTx as u16, bytes[index]);
+            self.outport(SERIAL_BASE + Registers::RxTx as u16, bytes[index]);
         }
     }
 }

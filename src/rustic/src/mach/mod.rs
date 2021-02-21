@@ -42,14 +42,21 @@ pub mod parity {
     }
 }
 
-pub trait Machine<'a> {
-    fn initialise(&mut self) -> bool;
+pub trait Machine {
+    fn mach_initialise(&mut self) -> bool;
+}
 
-    fn register_irq(&'a mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool);
+pub trait IrqController<'a> {
+    fn init_irqs(&mut self);
+
+    fn register_irq(&mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool);
 
     // Mask or unmask the given IRQ using the machine-specific implementation.
     fn enable_irq(&self, irq: usize);
     fn disable_irq(&self, irq: usize);
+
+    // Mark end of interrupt for the IRQ controller
+    fn eoi(&self, irq: usize);
 }
 
 pub trait IrqHandler {
@@ -57,7 +64,12 @@ pub trait IrqHandler {
 }
 
 pub trait Keyboard {
+    fn kb_init(&mut self);
     fn kb_leds(&mut self, state: u8);
+}
+
+pub trait HardwareTimer {
+    fn init_timers(&mut self, freq: usize);
 }
 
 pub trait TimerHandlers {
@@ -119,14 +131,4 @@ impl<'a> MachineState<'a> {
 
 pub fn create<'a>() -> MachineState<'a> {
     MachineState::new()
-}
-
-// Helpers.
-
-pub fn screen<T: Screen>(m: &mut T, s: &str) {
-    m.screen_write(s);
-}
-
-pub fn serial<'a, T: Serial<'a>>(m: &mut T, s: &str) {
-    m.serial_write(s);
 }

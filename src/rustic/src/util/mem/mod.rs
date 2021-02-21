@@ -14,44 +14,54 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std;
+use std::alloc::{GlobalAlloc, Layout, alloc};
+use std::ptr::null_mut;
 
 // TODO: write a proper allocator, prime with multiboot memory map.
-static mut HeapBase: u32 = 0x200000;
+static mut HeapBase: usize = 0x200000;
 
-pub fn allocate<T>() -> *mut T {
-    unsafe {
-        let ptr = alloc(std::mem::size_of::<T>() as u32, 4) as *mut T;
-        std::ptr::write_bytes(ptr, 0, 1);
-        ptr
+struct RusticAllocator;
+
+unsafe impl GlobalAlloc for RusticAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        direct_alloc(layout.size(), layout.align())
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, _layout: Layout) {
+        direct_dealloc(ptr)
     }
 }
 
-pub fn deallocate<T>(p: *const T) {
-    unsafe { free(p as *const u8); }
-}
+#[global_allocator]
+static A: RusticAllocator = RusticAllocator;
 
-pub unsafe fn alloc(sz: u32, _: u32) -> *mut u8 {
+pub unsafe fn direct_alloc(sz: usize, _align: usize) -> *mut u8 {
     // TODO: handle alignment.
-    let uint_size = std::mem::size_of::<u32>() as u32;
-    let object_size = sz;
+    let uint_size = std::mem::size_of::<usize>();
 
-    let ret = (HeapBase + uint_size) as *mut u8;
-    let tag = HeapBase as *mut u32;
+    let ret = (HeapBase + sz) as *mut u8;
+    let tag = HeapBase as *mut usize;
 
-    HeapBase += uint_size + object_size;
+    HeapBase += uint_size + sz;
 
-    *tag = object_size;
+    // Always succeeds, so no need to return null_mut() in any code path
+    *tag = sz;
     ret
 }
 
+pub unsafe fn direct_dealloc(_ptr: *mut u8) {
+    // does nothing as we're just incrementing a heap base
+}
+
+/*
 #[no_mangle]
 pub extern "C" fn malloc(sz: u32) -> *mut u8 {
     unsafe { alloc(sz, 4) }
 }
 
+#[no_mangle]
 pub unsafe fn realloc() -> *mut u8 {
-    0 as *mut u8
+    null_mut()
 }
 
 #[no_mangle]
@@ -64,3 +74,4 @@ pub extern "C" fn posix_memalign(memptr: *mut *mut u8, alignment: u32, sz: u32) 
     unsafe { *memptr = alloc(sz, alignment) };
     0
 }
+*/

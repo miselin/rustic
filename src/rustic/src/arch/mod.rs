@@ -27,7 +27,7 @@ mod armv7;
 mod state;
 
 pub trait Architecture {
-    fn initialise(&mut self) -> bool;
+    fn arch_initialise(&mut self) -> bool;
 
     fn register_trap(&mut self, num: usize, f: extern "Rust" fn(usize));
 

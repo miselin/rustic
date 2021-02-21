@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use crate::kernel;
+use crate::Kernel;
 
 use crate::mach::{MachineState, IoPort, Screen, Mmio};
 
@@ -56,7 +56,7 @@ impl Vga {
     }
 }
 
-impl<'a> Screen for MachineState<'a> {
+impl<'a> Screen for Kernel<'a> {
     fn screen_clear(&self) {
         self.screen_fill(' ');
     }
@@ -64,12 +64,12 @@ impl<'a> Screen for MachineState<'a> {
     fn screen_fill(&self, with: char) {
         let real_char = safe_char(with);
 
-        let field: u16 = (real_char as u16) | ((self.state.screen.bg as u16) << 12);
+        let field: u16 = (real_char as u16) | ((self.mach.state.screen.bg as u16) << 12);
         let max = self.screen_rows() * self.screen_cols() * 2;
 
         // TODO: we can do this better - a memset?
         for offset in (0..max).step_by(2) {
-            kernel().machine().mmio_write(VGABASE + offset, field);
+            self.mmio_write(VGABASE + offset, field);
         }
     }
 
@@ -82,86 +82,86 @@ impl<'a> Screen for MachineState<'a> {
     }
 
     fn screen_save_cursor(&mut self) {
-        self.state.screen.saved_x = self.state.screen.x;
-        self.state.screen.saved_y = self.state.screen.y;
+        self.mach.state.screen.saved_x = self.mach.state.screen.x;
+        self.mach.state.screen.saved_y = self.mach.state.screen.y;
     }
 
     fn screen_restore_cursor(&mut self) {
-        let new_x = self.state.screen.saved_x;
-        let new_y = self.state.screen.saved_y;
+        let new_x = self.mach.state.screen.saved_x;
+        let new_y = self.mach.state.screen.saved_y;
         self.screen_cursor(new_x, new_y);
     }
 
     fn screen_cursor(&mut self, x: u32, y: u32) {
-        self.state.screen.x = x;
-        self.state.screen.y = y;
+        self.mach.state.screen.x = x;
+        self.mach.state.screen.y = y;
 
         let position = (y * self.screen_cols()) + x;
 
-        kernel().machine().outport(0x3D4, 0x0Fu8);
-        kernel().machine().outport(0x3D5, (position & 0xFF) as u8);
-        kernel().machine().outport(0x3D4, 0x0Eu8);
-        kernel().machine().outport(0x3D5, ((position >> 8) & 0xFF) as u8);
+        self.outport(0x3D4, 0x0Fu8);
+        self.outport(0x3D5, (position & 0xFF) as u8);
+        self.outport(0x3D4, 0x0Eu8);
+        self.outport(0x3D5, ((position >> 8) & 0xFF) as u8);
 
-        let curr: u16 = kernel().machine().mmio_read(VGABASE + (position * 2));
+        let curr: u16 = self.mmio_read(VGABASE + (position * 2));
         let attr: u8 = (curr >> 8) as u8;
         if attr & 0xFu8 == 0 {
             // No foreground colour attribute for cursor location. Fix.
-            kernel().machine().mmio_write(VGABASE + (position * 2), curr | ((Colour::LightGray as u16) << 8));
+            self.mmio_write(VGABASE + (position * 2), curr | ((Colour::LightGray as u16) << 8));
         }
     }
 
     fn screen_save_attrib(&mut self) {
-        self.state.screen.saved_fg = self.state.screen.fg;
-        self.state.screen.saved_bg = self.state.screen.bg;
+        self.mach.state.screen.saved_fg = self.mach.state.screen.fg;
+        self.mach.state.screen.saved_bg = self.mach.state.screen.bg;
     }
 
     fn screen_restore_attrib(&mut self) {
-        self.state.screen.fg = self.state.screen.saved_fg;
-        self.state.screen.bg = self.state.screen.saved_bg;
+        self.mach.state.screen.fg = self.mach.state.screen.saved_fg;
+        self.mach.state.screen.bg = self.mach.state.screen.saved_bg;
     }
 
     fn screen_attrib(&mut self, fg: Colour, bg: Colour) {
-        self.state.screen.fg = fg;
-        self.state.screen.bg = bg;
+        self.mach.state.screen.fg = fg;
+        self.mach.state.screen.bg = bg;
     }
 
     fn screen_write_char(&mut self, c: char) {
-        let attr = ((self.state.screen.bg as u8) << 4) | (self.state.screen.fg as u8);
+        let attr = ((self.mach.state.screen.bg as u8) << 4) | (self.mach.state.screen.fg as u8);
 
         match safe_char(c) {
             // newline
             0x0A => {
-                self.state.screen.x = 0;
-                self.state.screen.y += 1;
+                self.mach.state.screen.x = 0;
+                self.mach.state.screen.y += 1;
             },
             // carriage return
             0x0D => {
-                self.state.screen.x = 0;
+                self.mach.state.screen.x = 0;
             },
             // tab
             0x09 => {
-                self.state.screen.x += 4;
-                self.state.screen.x -= self.state.screen.x % 4;
+                self.mach.state.screen.x += 4;
+                self.mach.state.screen.x -= self.mach.state.screen.x % 4;
             },
             0x00 => {},
             glyph => {
-                let offset = (self.state.screen.y * self.screen_cols()) + self.state.screen.x;
+                let offset = (self.mach.state.screen.y * self.screen_cols()) + self.mach.state.screen.x;
                 let val = (glyph as u16) | ((attr as u16) << 8);
-                kernel().machine().mmio_write(VGABASE + (offset * 2), val);
+                self.mmio_write(VGABASE + (offset * 2), val);
 
-                self.state.screen.x += 1;
+                self.mach.state.screen.x += 1;
             }
         };
 
-        if self.state.screen.x >= self.screen_cols() {
-            self.state.screen.x = 0;
-            self.state.screen.y += 1;
+        if self.mach.state.screen.x >= self.screen_cols() {
+            self.mach.state.screen.x = 0;
+            self.mach.state.screen.y += 1;
         }
 
         // TODO: scroll.
-        if self.state.screen.y >= self.screen_rows() {
-            self.state.screen.y = self.screen_rows() - 1;
+        if self.mach.state.screen.y >= self.screen_rows() {
+            self.mach.state.screen.y = self.screen_rows() - 1;
         }
     }
 

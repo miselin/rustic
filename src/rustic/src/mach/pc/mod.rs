@@ -19,8 +19,10 @@ use std::cell::RefCell;
 use std::default::Default;
 use std::rc::Rc;
 
-use crate::mach::{IrqHandler, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
+use crate::mach::{IrqHandler, IrqController, HardwareTimer, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
 use crate::mach::parity::Parity;
+
+use crate::Kernel;
 
 mod kb;
 mod pic;
@@ -46,66 +48,51 @@ impl<'a> State<'a> {
     }
 }
 
-impl<'a> Machine<'a> for MachineState<'a> {
-    fn initialise(&mut self) -> bool {
+impl<'a> Machine for Kernel<'a> {
+    fn mach_initialise(&mut self) -> bool {
         // Configure serial port.
         self.serial_config(115200, 8, Parity::NoParity, 1);
 
         // Bring up the PIC.
-        self.state.irq_ctlr = pic::Pic::init();
+        self.mach.state.irq_ctlr = pic::Pic::new();
+        self.init_irqs();
 
         // Bring up the PIT at 100hz.
-        self.state.timer = pit::Pit::init(100);
+        self.mach.state.timer = pit::Pit::new();
+        self.init_timers(100);
 
         // Bring up the keyboard.
-        self.state.keyboard = kb::PS2Keyboard::init();
+        self.mach.state.keyboard = kb::PS2Keyboard::new();
+        self.kb_init();
 
         // Register the PIT and keyboard IRQs.
         // TODO: fix these borrows
-        //self.register_irq(pit::Pit::irq_num(), &self.state.timer, true);
-        //self.register_irq(kb::PS2Keyboard::irq_num(), &self.state.keyboard, true);
+        //self.register_irq(pit::Pit::irq_num(), &self.mach.state.timer, true);
+        //self.register_irq(kb::PS2Keyboard::irq_num(), &self.mach.state.keyboard, true);
 
         // Set up the VGA screen.
-        self.state.screen.init();
+        self.mach.state.screen.init();
 
-        self.initialised = true;
+        self.mach.initialised = true;
 
-        self.initialised
-    }
-
-    fn register_irq(&'a mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool) {
-        self.state.irq_ctlr.register(irq, f, level_trigger);
-    }
-
-    fn enable_irq(&self, irq: usize) {
-        self.state.irq_ctlr.enable(irq);
-    }
-
-    fn disable_irq(&self, irq: usize) {
-        self.state.irq_ctlr.disable(irq);
+        self.mach.initialised
     }
 }
 
-impl<'a> TimerHandlers for MachineState<'a> {
+impl<'a> TimerHandlers for Kernel<'a> {
     fn register_timer(&mut self, f: extern "Rust" fn(usize)) {
-        self.state.timer_handlers.push(f);
+        self.mach.state.timer_handlers.push(f);
     }
 
     fn timer_fired(&mut self, ms: usize) {
-        for h in self.state.timer_handlers.iter() {
+        for h in self.mach.state.timer_handlers.iter() {
             let handler = *h;
             handler(ms);
         }
     }
 }
 
-impl<'a> Keyboard for MachineState<'a> {
-    fn kb_leds(&mut self, state: u8) {
-        self.state.keyboard.leds(state)
-    }
-}
-
-impl<'a> IoPort for MachineState<'a> {
+impl<'a> IoPort for Kernel<'a> {
     fn outport<T>(&self, port: u16, val: T) {
         unsafe {
             llvm_asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
@@ -121,7 +108,7 @@ impl<'a> IoPort for MachineState<'a> {
     }
 }
 
-impl<'a> Mmio for MachineState<'a> {
+impl<'a> Mmio for Kernel<'a> {
     fn mmio_write<T>(&self, address: u32, val: T) {
         let ptr = address as *mut T;
         unsafe { std::ptr::write(ptr, val) };

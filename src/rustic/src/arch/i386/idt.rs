@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use crate::kernel;
-
 type IdtTable = [IdtEntry; 256];
 
 // One handler per interrupt line.
@@ -127,7 +125,7 @@ impl InterruptHandler {
 #[no_mangle]
 pub extern "C" fn isr_rustentry(which: usize) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    kernel().architecture().state.idt.trap(which)
+    // kernel().architecture().state.idt.trap(which)
 }
 
 fn default_trap(_: usize) {

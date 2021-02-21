@@ -44,6 +44,8 @@ pub mod colour {
 
 // format! -> format and return string
 
+/*
+
 #[macro_export]
 macro_rules! format(
     ($($arg:tt)*) => (
@@ -78,7 +80,7 @@ macro_rules! println(
 
 #[macro_export]
 macro_rules! printto(
-    ($f:ident, $fmt:expr) => ({
+    ($kernel:ident, $f:ident, $fmt:expr) => ({
         $f(kernel_mut().machine_mut(), $fmt)
     });
     ($f:ident, $fmt:expr, $($arg:tt)*) => ({
@@ -97,3 +99,5 @@ macro_rules! printlnto(
         $f(kernel_mut().machine_mut(), x.as_slice())
     });
 );
+
+*/

@@ -14,16 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::rc::Rc;
-use std::cell::RefCell;
-
 use crate::arch::{Architecture, TrapHandler};
 
 use crate::mach;
-use crate::mach::{IoPort, Serial};
+use crate::mach::{IoPort, IrqController, Serial};
 
-use crate::kernel;
-use crate::kernel_mut;
+use crate::Kernel;
 
 struct IrqHandler<'a> {
     f: &'a dyn mach::IrqHandler,
@@ -47,77 +43,66 @@ impl<'a> Pic<'a> {
         Pic{irqhandlers: [None, None, None, None, None, None, None, None,
                           None, None, None, None, None, None, None, None]}
     }
+}
 
-    pub fn init() -> Pic<'a> {
-        let result = Pic{irqhandlers: [None, None, None, None, None, None, None,
-                                       None, None, None, None, None, None, None,
-                                       None, None]};
-
-        kernel().machine().outport(0x20, 0x11u8);
-        kernel().machine().outport(0xA0, 0x11u8);
-        kernel().machine().outport(0x21, RemapBase as u8); // Remap to start at the remap base.
-        kernel().machine().outport(0xA1, (RemapBase + 8) as u8);
-        kernel().machine().outport(0x21, 0x04u8);
-        kernel().machine().outport(0xA1, 0x02u8);
-        kernel().machine().outport(0x21, 0x01u8);
-        kernel().machine().outport(0xA1, 0x01u8);
+impl<'a> IrqController<'a> for Kernel<'a> {
+    fn init_irqs(&mut self) {
+        self.outport(0x20, 0x11u8);
+        self.outport(0xA0, 0x11u8);
+        self.outport(0x21, RemapBase as u8); // Remap to start at the remap base.
+        self.outport(0xA1, (RemapBase + 8) as u8);
+        self.outport(0x21, 0x04u8);
+        self.outport(0xA1, 0x02u8);
+        self.outport(0x21, 0x01u8);
+        self.outport(0xA1, 0x01u8);
 
         // Mask all, machine layer will call our enable() when an IRQ is registered.
-        kernel().machine().outport(0x21, 0xFFu8);
-        kernel().machine().outport(0xA1, 0xFFu8);
-
-        result
+        self.outport(0x21, 0xFFu8);
+        self.outport(0xA1, 0xFFu8);
     }
 
-    pub fn remap_base() -> usize {
-        return RemapBase;
+    fn register_irq(&mut self, irq: usize, f: &'a dyn mach::IrqHandler, level_trigger: bool) {
+        let irqhandler = IrqHandler{f: f, level: level_trigger};
+        self.mach.state.irq_ctlr.irqhandlers[irq] = Some(irqhandler);
+
+        self.register_trap(irq + RemapBase, irq_stub);
     }
 
-    pub fn irq_count() -> usize {
-        return 16;
-    }
-
-    pub fn register(&'a mut self, irq: usize, f: &'a dyn mach::IrqHandler, level: bool) {
-        let irqhandler = IrqHandler{f: f, level: level};
-        self.irqhandlers[irq] = Some(irqhandler);
-
-        kernel_mut().architecture_mut().register_trap(irq + RemapBase, irq_stub);
-    }
-
-    pub fn enable(&self, line: usize) {
-        if line > 7 {
-            let actual = line - 8;
-            let curr: u8 = kernel().machine().inport(0xA1);
+    fn enable_irq(&self, irq: usize) {
+        if irq > 7 {
+            let actual = irq - 8;
+            let curr: u8 = self.inport(0xA1);
             let flag: u8 = 1 << actual;
-            kernel().machine().outport(0xA1, curr & !flag)
+            self.outport(0xA1, curr & !flag)
         } else {
-            let curr: u8 = kernel().machine().inport(0x21);
-            let flag: u8 = 1 << line;
-            kernel().machine().outport(0x21, curr & !flag)
+            let curr: u8 = self.inport(0x21);
+            let flag: u8 = 1 << irq;
+            self.outport(0x21, curr & !flag)
         }
     }
 
-    pub fn disable(&self, line: usize) {
-        if line > 7 {
-            let actual = line - 8;
-            let curr: u8 = kernel().machine().inport(0xA1);
+    fn disable_irq(&self, irq: usize) {
+        if irq > 7 {
+            let actual = irq - 8;
+            let curr: u8 = self.inport(0xA1);
             let flag: u8 = 1 << actual;
-            kernel().machine().outport(0xA1, curr | flag)
+            self.outport(0xA1, curr | flag)
         } else {
-            let curr: u8 = kernel().machine().inport(0x21);
-            let flag: u8 = 1 << line;
-            kernel().machine().outport(0x21, curr | flag)
+            let curr: u8 = self.inport(0x21);
+            let flag: u8 = 1 << irq;
+            self.outport(0x21, curr | flag)
         }
     }
 
-    fn eoi(&self, n: usize) {
-        if n > 7 { kernel().machine().outport(0xA0, 0x20u8); }
-        kernel().machine().outport(0x20, 0x20u8);
+    fn eoi(&self, irq: usize) {
+        if irq > 7 { self.outport(0xA0, 0x20u8); }
+        self.outport(0x20, 0x20u8);
     }
 }
 
 impl TrapHandler for Pic<'_> {
     fn trap(&mut self, num: usize) {
+        /*
         let irqnum = num - RemapBase;
 
         // Get status registers for master/slave
@@ -165,10 +150,13 @@ impl TrapHandler for Pic<'_> {
                 self.eoi(irqnum);
             }
         };
+        */
+
+        // todo
     }
 }
 
 fn irq_stub(which: usize) {
     // TODO: this happens in a different execution context and might be unsafe?
-    kernel_mut().machine_mut().state.irq_ctlr.trap(which)
+    // kernel_mut().machine_mut().state.irq_ctlr.trap(which)
 }

@@ -23,7 +23,7 @@
 #![no_main]
 
 // Publish the main things users care about.
-pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler, serial};
+pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler, Serial};
 pub use arch::{Architecture, Threads};
 
 // Pull in the architectural layer (CPU etc).
@@ -43,15 +43,14 @@ pub struct Kernel<'a> {
 // Required to be defined by the application.
 extern "Rust" { fn run(k: &mut Kernel); }
 
-pub static mut kernel_static: Option<Kernel> = None;
-
+/*
 #[no_mangle]
 pub extern "C" fn abort() -> ! {
     // TODO: should this be provided by the application?
-    kernel_mut().architecture_mut().set_interrupts(false);
     printlnto!(serial, "Abort!");
     loop {}
 }
+*/
 
 impl<'a> Kernel<'a> {
     pub fn new() -> Kernel<'a> {
@@ -63,14 +62,14 @@ impl<'a> Kernel<'a> {
 
     pub fn start(&'a mut self, app: extern "Rust" fn(&mut Kernel)) {
         // Now we can initialise the system.
-        self.arch.initialise();
-        self.mach.initialise();
+        self.arch_initialise();
+        self.mach_initialise();
 
         // All done with initial startup.
-        printlnto!(serial, "Built on the Rustic Framework.");
+        self.serial_write("Built on the Rustic Framework.\n");
 
         // Enable IRQs and start up the application.
-        self.arch.set_interrupts(true);
+        self.set_interrupts(true);
         /*
         self.spawn(|| {
             unsafe { run(self) };
@@ -98,25 +97,7 @@ impl<'a> Kernel<'a> {
     }
 
     pub fn spawn(&mut self, f: fn()) {
-        self.arch.spawn_thread(f);
-        self.arch.reschedule();
-    }
-}
-
-pub fn kernel<'a>() -> &'a Kernel<'static> {
-    unsafe {
-        match kernel_static {
-            Some(ref v) => v,
-            None => panic!("kernel is not initialized yet")
-        }
-    }
-}
-
-pub fn kernel_mut<'a>() -> &'a mut Kernel<'static> {
-    unsafe {
-        match kernel_static {
-            Some(ref mut v) => v,
-            None => panic!("kernel is not initialized yet")
-        }
+        self.spawn_thread(f);
+        self.reschedule();
     }
 }

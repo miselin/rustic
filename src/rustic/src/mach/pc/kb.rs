@@ -15,8 +15,8 @@
  */
 
 use crate::mach;
-use crate::mach::IoPort;
-use crate::kernel;
+use crate::mach::{Keyboard, IoPort};
+use crate::Kernel;
 
 static KEYBOARD_IRQ: usize = 1;
 static KEYBOARD_CMD: u16 = 0x60;
@@ -38,44 +38,8 @@ impl PS2Keyboard {
         PS2Keyboard{shifted: false, ledstate: 0u8}
     }
 
-    pub fn init() -> PS2Keyboard {
-        let state = PS2Keyboard::new();
-
-        // Put the keyboard into scan code set 1, ready for our mapping.
-        /*
-        kbcmdwait();
-        kernel().machine().outport(0x60, 0xF0u8);
-        kbcmdwait();
-        kernel().machine().outport(0x60, 1u8);
-        */
-
-        state
-    }
-
     pub fn irq_num() -> usize {
         KEYBOARD_IRQ
-    }
-
-    fn kbcmdwait(&self) {
-        loop {
-            let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
-            if status & 0x2 == 0 { break; }
-        }
-    }
-
-    fn kbdatawait(&self) {
-        loop {
-            let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
-            if status & 0x1 != 0 { break; }
-        }
-    }
-
-    pub fn leds(&mut self, state: u8) {
-        self.ledstate ^= state;
-        self.kbcmdwait();
-        kernel().machine().outport(KEYBOARD_CMD, 0xEDu8);
-        self.kbcmdwait();
-        kernel().machine().outport(KEYBOARD_CMD, self.ledstate);
     }
 
     fn gotkey(&mut self, scancode: usize) {
@@ -89,6 +53,38 @@ impl PS2Keyboard {
 
         // TODO: write the key into a queue that can be read out of!
     }
+
+    fn kbcmdwait<'a, 'b>(&self, kernel: &'b Kernel<'a>) {
+        loop {
+            let status: u8 = kernel.inport(KEYBOARD_DATA);
+            if status & 0x2 == 0 { break; }
+        }
+    }
+
+    fn kbdatawait<'a, 'b>(&self, kernel: &'b Kernel<'a>) {
+        loop {
+            let status: u8 = kernel.inport(KEYBOARD_DATA);
+            if status & 0x1 != 0 { break; }
+        }
+    }
+}
+
+impl<'a> Keyboard for Kernel<'a> {
+    fn kb_init(&mut self) {
+        // Put the keyboard into scan code set 1, ready for our mapping.
+        self.mach.state.keyboard.kbcmdwait(self);
+        self.outport(0x60, 0xF0u8);
+        self.mach.state.keyboard.kbcmdwait(self);
+        self.outport(0x60, 1u8);
+    }
+
+    fn kb_leds(&mut self, state: u8) {
+        self.mach.state.keyboard.ledstate ^= state;
+        self.mach.state.keyboard.kbcmdwait(self);
+        self.outport(KEYBOARD_CMD, 0xEDu8);
+        self.mach.state.keyboard.kbcmdwait(self);
+        self.outport(KEYBOARD_CMD, self.mach.state.keyboard.ledstate);
+    }
 }
 
 impl mach::IrqHandler for PS2Keyboard {
@@ -97,13 +93,13 @@ impl mach::IrqHandler for PS2Keyboard {
 
         /*
         // Check status, make sure a key is actually pending.
-        let status: u8 = kernel().machine().inport(KEYBOARD_DATA);
+        let status: u8 = self.inport(KEYBOARD_DATA);
         if status & 0x1 == 0 {
             return;
         }
 
         // Get scancode.
-        let scancode: u8 = kernel().machine().inport(KEYBOARD_CMD);
+        let scancode: u8 = self.inport(KEYBOARD_CMD);
 
         // Top bit set means 'key up'
         if scancode & 0x80 != 0 {

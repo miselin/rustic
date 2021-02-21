@@ -18,13 +18,13 @@
 
 #![no_main]
 
-use rustic::{Kernel, println, printlnto, kernel_mut};
+use rustic::Kernel;
 
 use rustic::arch;
 use rustic::mach;
 
 use rustic::arch::{Architecture, Threads};
-use rustic::mach::{Keyboard, Screen, TimerHandlers, serial};
+use rustic::mach::{Keyboard, Screen, TimerHandlers, Serial};
 use rustic::util;
 
 static mut global_ticks: usize = 0;
@@ -38,8 +38,8 @@ fn demo_screen() {
 */
 
 fn demo_serial(kernel: &mut Kernel) {
-    printlnto!(serial, "Hello from the Rustic demo!");
-    printlnto!(serial, "The serial port supports full UTF-8 - ☃.");
+    kernel.serial_write("Hello from the Rustic demo!\n");
+    kernel.serial_write("The serial port supports full UTF-8 - ☃.\n");
 }
 
 /*
@@ -83,9 +83,9 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> i32 {
 // Demo - shows off some of the features Rustic can provide.
 fn run(kernel: &mut Kernel) {
     // Wipe screen, prepare for writing text.
-    kernel.machine_mut().screen_attrib(util::colour::Colour::LightGray, util::colour::Colour::Black);
-    kernel.machine_mut().screen_clear();
-    kernel.machine_mut().screen_cursor(0, 0);
+    kernel.screen_attrib(util::colour::Colour::LightGray, util::colour::Colour::Black);
+    kernel.screen_clear();
+    kernel.screen_cursor(0, 0);
 
     // Demo messages.
     //demo_screen();
@@ -99,10 +99,10 @@ fn run(kernel: &mut Kernel) {
     //println!("Hello, world!");
 
     // Set LEDs for fun.
-    kernel.machine_mut().kb_leds(1);
+    kernel.kb_leds(1);
 
     // Test serial port.
-    printlnto!(serial, "This is on the serial port, awesome!");
+    kernel.serial_write("This is on the serial port, awesome!\n");
 
     // Demo a thread printing a message.
     /*
@@ -112,7 +112,7 @@ fn run(kernel: &mut Kernel) {
     */
 
     loop {
-      kernel.architecture().wait_for_event();
-      kernel.architecture_mut().reschedule();
+      kernel.wait_for_event();
+      kernel.reschedule();
     }
 }

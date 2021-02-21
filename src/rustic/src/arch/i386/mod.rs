@@ -18,8 +18,9 @@ use std::collections::VecDeque;
 
 use crate::arch::{Architecture, ArchitectureState, Threads};
 
-use crate::kernel_mut;
 use crate::util;
+
+use crate::Kernel;
 
 mod gdt;
 mod idt;
@@ -102,23 +103,24 @@ impl ThreadState {
     }
 }
 
-impl Architecture for ArchitectureState {
-    fn initialise(&mut self) -> bool {
-        self.state.gdt.entry(0, 0, 0, 0, 0); // 0x00 - NULL
-        self.state.gdt.entry(1, 0, 0xFFFFFFFF, 0x98, 0xCF); // 0x08 - Kernel Code
-        self.state.gdt.entry(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // 0x10 - Kernel Data
-        self.state.gdt.entry(3, 0, 0xFFFFFFFF, 0xF8, 0xCF); // 0x18 - User Code
-        self.state.gdt.entry(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // 0x20 - User Data
-        self.state.gdt.entry(5, tls_emul_segment as u32, 0xFFFFFFFF, 0x92, 0xCF); // 0x28 - TLS emulation (for stack switching support)
-        self.state.gdt.load(0x08, 0x10, 0x28);
+impl<'a> Architecture for Kernel<'a> {
+    fn arch_initialise(&mut self) -> bool {
+        self.arch.state.gdt.entry(0, 0, 0, 0, 0); // 0x00 - NULL
+        self.arch.state.gdt.entry(1, 0, 0xFFFFFFFF, 0x98, 0xCF); // 0x08 - Kernel Code
+        self.arch.state.gdt.entry(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // 0x10 - Kernel Data
+        self.arch.state.gdt.entry(3, 0, 0xFFFFFFFF, 0xF8, 0xCF); // 0x18 - User Code
+        self.arch.state.gdt.entry(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // 0x20 - User Data
+        self.arch.state.gdt.entry(5, tls_emul_segment as u32, 0xFFFFFFFF, 0x92, 0xCF); // 0x28 - TLS emulation (for stack switching support)
+        self.arch.state.gdt.load(0x08, 0x10, 0x28);
 
-        self.state.idt.init();
+        self.arch.state.idt.init();
 
-        true
+        self.arch.initialised = true;
+        self.arch.initialised
     }
 
     fn register_trap(&mut self, which: usize, handler: extern "Rust" fn(usize)) {
-        self.state.idt.register(which, handler)
+        self.arch.state.idt.register(which, handler)
     }
 
     fn get_interrupts(&self) -> bool {
@@ -139,30 +141,30 @@ impl Architecture for ArchitectureState {
     }
 }
 
-impl Threads for ArchitectureState {
+impl<'a> Threads for Kernel<'a> {
     fn spawn_thread(&mut self, f: ThreadEntryPoint) {
         let mut new_thread = Thread::new();
         new_thread.exec_state.eip = rust_spawned_trampoline as u32;
 
         // TODO(miselin): do this way better than this.
-        let stack = unsafe { util::mem::alloc(4096, 16) } as *mut u32;
+        let stack = unsafe { util::mem::direct_alloc(4096, 16) } as *mut u32;
         let stack_top = stack as u32 + 4096;
         new_thread.exec_state.esp = stack_top;
 
         new_thread.entry = Some(f);
         new_thread.is_alive = true;
 
-        self.state.ready_threads.push_front(new_thread);
+        self.arch.state.ready_threads.push_front(new_thread)
     }
 
     fn thread_terminate(&mut self) -> ! {
-        self.state.running_thread.is_alive = false;
+        self.arch.state.running_thread.is_alive = false;
         self.reschedule();
         loop {}
     }
 
     fn reschedule(&mut self) {
-        let state = &mut self.state;
+        let state = &mut self.arch.state;
 
         if state.ready_threads.len() == 0 {
             return;
@@ -191,8 +193,11 @@ impl Threads for ArchitectureState {
 }
 
 extern "C" fn rust_spawned_trampoline() -> ! {
+    loop {}
+    /*
     let f = kernel_mut().architecture_mut().state.running_thread.entry.unwrap();
     f();
 
     kernel_mut().architecture_mut().thread_terminate();
+    */
 }
