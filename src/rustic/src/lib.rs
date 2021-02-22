@@ -43,6 +43,8 @@ use core::panic::PanicInfo;
 use core::fmt::{Write, Error};
 use util::sync::Spinlock;
 
+static mut KERNEL_SINGLETON: Option<Arc<Spinlock<Kernel>>> = None;
+
 struct Debug {
 }
 
@@ -78,26 +80,44 @@ pub trait Idle {
 }
 
 impl Kernel {
-    pub fn new() -> Kernel {
-        Kernel {
-            mach: mach::create(),
-            arch: arch::create()
-        }
-    }
-
     // Sets up the kernel, and then returns a wrapped version of the Kernel
     // that is correctly prepared for concurrency.
-    pub fn start(mut self) -> Arc<Spinlock<Kernel>> {
+    pub fn start() -> Arc<Spinlock<Kernel>> {
+        if unsafe { KERNEL_SINGLETON.is_some() } {
+            panic!("Kernel::start called more than once!");
+        }
+
+        let mut kernel = Kernel {
+            mach: mach::create(),
+            arch: arch::create()
+        };
+
         // Now we can initialise the system.
-        self.arch_initialise();
-        self.mach_initialise();
+        kernel.arch_initialise();
+        kernel.mach_initialise();
 
         // All done with initial startup.
-        self.serial_write("Built on the Rustic Framework.\n");
+        kernel.serial_write("Built on the Rustic Framework.\n");
 
         // Enable IRQs and start up the application.
-        self.set_interrupts(true);
+        kernel.set_interrupts(true);
 
-        Arc::new(Spinlock::new(self))
+        let kernel_wrapped = Arc::new(Spinlock::new(kernel));
+        let result = Arc::clone(&kernel_wrapped);
+
+        unsafe { KERNEL_SINGLETON = Some(kernel_wrapped) };
+
+        unsafe { llvm_asm!( "int3" ) };
+
+        result
+    }
+
+    pub fn kernel() -> Arc<Spinlock<Kernel>> {
+        unsafe {
+            match KERNEL_SINGLETON {
+                Some(ref v) => Arc::clone(v),
+                None => panic!("kernel is not initialized yet")
+            }
+        }
     }
 }

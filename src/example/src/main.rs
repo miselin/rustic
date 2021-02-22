@@ -75,8 +75,7 @@ fn ticks(ms: usize) {
 
 #[no_mangle]
 pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
-    let kernel_state = Kernel::new();
-    let locked_kernel = kernel_state.start();
+    let locked_kernel = Kernel::start();
 
     // Do some initial demo work by taking the lock for an extended period
     let mut kernel = locked_kernel.lock().unwrap();

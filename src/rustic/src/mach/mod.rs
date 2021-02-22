@@ -16,6 +16,8 @@
 
 use crate::util::colour;
 
+use alloc::boxed::Box;
+
 #[cfg(feature="plat_pc")]
 mod pc;
 

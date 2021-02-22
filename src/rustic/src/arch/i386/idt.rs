@@ -16,6 +16,7 @@
 
 use alloc::sync::Arc;
 
+use crate::Kernel;
 use crate::util::sync::Spinlock;
 
 type IdtTable = [IdtEntry; 256];
@@ -102,7 +103,7 @@ impl Idt {
     }
 
     pub fn register(&mut self, index: usize, handler: extern "Rust" fn(usize)) {
-        let mut handlers = *self.handlers.lock().unwrap();
+        let mut handlers = self.handlers.lock().unwrap();
         handlers[index] = InterruptHandler::new(handler);
     }
 
@@ -144,9 +145,9 @@ impl InterruptHandler {
 }
 
 #[no_mangle]
-pub extern "C" fn isr_rustentry(_which: usize) {
+pub extern "C" fn isr_rustentry(which: usize) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    // kernel().architecture().state.IDT.trap(which)
+    Kernel::kernel().lock().unwrap().arch.state.idt.trap(which);
 }
 
 fn default_trap(_: usize) {

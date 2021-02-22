@@ -23,6 +23,7 @@ use alloc::boxed::Box;
 use crate::util::sync::Spinlock;
 
 use crate::arch::{Architecture, Threads, ThreadSpawn};
+use crate::mach::Machine;
 
 use simplealloc;
 

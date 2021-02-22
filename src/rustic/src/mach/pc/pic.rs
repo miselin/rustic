@@ -22,11 +22,11 @@ use crate::util::sync::Spinlock;
 
 use crate::arch::{Architecture, TrapHandler};
 
-use crate::mach::{IoPort, IrqController, IrqRegister};
+use crate::mach::{IoPort, IrqController, IrqHandler, IrqRegister, Machine};
 
 use crate::Kernel;
 
-struct IrqHandler {
+struct PicIrqHandler {
     f: Box<dyn FnMut(usize) + Send>,
     level: bool,
 }
@@ -36,13 +36,12 @@ pub static REMAP_BASE: usize = 0x20;
 static mut ACTIVE_IRQS: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 pub struct Pic {
-    irqhandlers: Arc<Spinlock<[Option<IrqHandler>; 16]>>,
+    irqhandlers: [Option<PicIrqHandler>; 16],
 }
 
 impl Pic {
     pub fn new() -> Pic {
-        Pic{irqhandlers: Arc::new(Spinlock::new([None, None, None, None, None, None, None, None,
-                                                 None, None, None, None, None, None, None, None]))}
+        Pic{irqhandlers: [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None]}
     }
 }
 
@@ -96,17 +95,17 @@ impl IrqController for Kernel {
 
 impl<F: FnMut(usize) + Send + 'static> IrqRegister<F> for Kernel {
     fn register_irq(&mut self, irq: usize, handler: F, level_trigger: bool) {
-        let irqhandler = IrqHandler{f: Box::new(handler), level: level_trigger};
-        let mut handlers = self.mach.state.irq_ctlr.irqhandlers.lock().unwrap();
-        handlers[irq] = Some(irqhandler);
-        drop(handlers);
+        let irqhandler = PicIrqHandler{f: Box::new(handler), level: level_trigger};
+        self.mach.state.irq_ctlr.irqhandlers[irq] = Some(irqhandler);
 
         self.register_trap(irq + REMAP_BASE, irq_stub);
     }
 }
 
-impl TrapHandler for Kernel {
+impl TrapHandler for Pic {
     fn trap(&mut self, _num: usize) {
+        Kernel::debug("irq!\n");
+
         /*
         let irqnum = num - REMAP_BASE;
 
@@ -161,7 +160,6 @@ impl TrapHandler for Kernel {
     }
 }
 
-fn irq_stub(_which: usize) {
-    // TODO: this happens in a different execution context and might be unsafe?
-    // kernel_mut().machine_mut().state.irq_ctlr.trap(which)
+fn irq_stub(which: usize) {
+    Kernel::kernel().lock().unwrap().mach.state.irq_ctlr.trap(which);
 }
