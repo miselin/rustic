@@ -55,7 +55,7 @@ struct InternalIdt {
     reg: IdtRegister,
 }
 
-static mut idt: InternalIdt = InternalIdt::new();
+static mut IDT: InternalIdt = InternalIdt::new();
 
 pub struct Idt {
     handlers: Arc<Spinlock<[InterruptHandler; 256]>>
@@ -98,7 +98,7 @@ impl Idt {
     }
 
     pub fn init(&mut self) {
-        unsafe { idt.init(); }
+        unsafe { IDT.init(); }
     }
 
     pub fn register(&mut self, index: usize, handler: extern "Rust" fn(usize)) {
@@ -107,7 +107,7 @@ impl Idt {
     }
 
     fn trap(&self, which: usize) {
-        let mut handlers = self.handlers.lock().unwrap();
+        let handlers = self.handlers.lock().unwrap();
         (handlers[which].f)(which);
     }
 }
@@ -144,9 +144,9 @@ impl InterruptHandler {
 }
 
 #[no_mangle]
-pub extern "C" fn isr_rustentry(which: usize) {
+pub extern "C" fn isr_rustentry(_which: usize) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    // kernel().architecture().state.idt.trap(which)
+    // kernel().architecture().state.IDT.trap(which)
 }
 
 fn default_trap(_: usize) {

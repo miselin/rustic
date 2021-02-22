@@ -21,7 +21,6 @@
 #![feature(alloc_error_handler)]
 #![allow(dead_code)]
 
-#![no_main]
 #![no_std]
 
 extern crate alloc;
@@ -39,7 +38,6 @@ pub mod mach;
 // Pull in utils library.
 pub mod util;
 
-use alloc::format;
 use alloc::sync::Arc;
 use core::panic::PanicInfo;
 use core::fmt::{Write, Error};
@@ -63,7 +61,7 @@ fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     let mut v = Debug{};
-    core::fmt::write(&mut v, format_args!("panic: {}", info));
+    core::fmt::write(&mut v, format_args!("panic: {}", info)).unwrap();
     loop {}
 }
 

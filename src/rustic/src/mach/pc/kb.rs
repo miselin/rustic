@@ -23,9 +23,9 @@ static KEYBOARD_CMD: u16 = 0x60;
 static KEYBOARD_DATA: u16 = 0x64;
 
 // Scan code set #1
-static ScanCodeMapping: &'static str = "\
+static SCAN_CODE_MAPPING: &'static str = "\
 \x00\x1B1234567890-=\x08\tqwertyuiop[]\n?asdfghjkl;'`?\\zxcvbnm,./?*? ?????????????789-456+1230.?????";
-static ScanCodeMappingShifted: &'static str = "\
+static SCAN_CODE_MAPPING_SHIFTED: &'static str = "\
 \x00\x1B!@#$%^&*()_+\x08\tQWERTYUIOP{}\n?ASDFGHJKL:\"~?|ZXCVBNM<>??*? ?????????????789-456+1230.?????";
 
 pub struct PS2Keyboard {
@@ -47,8 +47,8 @@ impl PS2Keyboard {
         if scancode > 0x58 { return; }
 
         let _ = match self.shifted {
-            true => ScanCodeMappingShifted,
-            false => ScanCodeMapping
+            true => SCAN_CODE_MAPPING_SHIFTED,
+            false => SCAN_CODE_MAPPING
         }.chars().nth(scancode).unwrap();
 
         // TODO: write the key into a queue that can be read out of!

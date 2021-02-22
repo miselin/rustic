@@ -16,7 +16,7 @@
 
 use crate::Kernel;
 
-use crate::mach::{MachineState, IoPort, Serial};
+use crate::mach::{IoPort, Serial};
 use crate::mach::parity::Parity;
 
 enum Registers {

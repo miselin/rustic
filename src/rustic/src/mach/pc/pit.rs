@@ -15,9 +15,9 @@
  */
 
 use crate::Kernel;
-use crate::mach::{IrqHandler, HardwareTimer, TimerHandlers, IoPort};
+use crate::mach::{IrqHandler, HardwareTimer, IoPort};
 
-static BaseFrequency: usize = 1193180;
+static BASE_FREQUENCY: usize = 1193180;
 
 pub struct Pit {
     timer_hz: usize,
@@ -39,7 +39,7 @@ impl HardwareTimer for Kernel {
 
         // Program periodic mode, with our desired divisor for the given
         // frequency (in hertz).
-        let div = BaseFrequency / freq;
+        let div = BASE_FREQUENCY / freq;
         self.outport(0x43, 0x36u8);
         self.outport(0x40, (div & 0xFF) as u8);
         self.outport(0x40, ((div >> 8) & 0xFF) as u8);

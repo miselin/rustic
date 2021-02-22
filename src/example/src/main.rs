@@ -14,27 +14,21 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #![feature(llvm_asm)]
-#![feature(globs)]
 
 #![no_main]
 #![no_std]
 
 extern crate alloc;
 
-use rustic::{Kernel, Idle};
+use rustic::Kernel;
 
-use rustic::arch;
-use rustic::mach;
-
-use rustic::arch::{Architecture, Threads, ThreadSpawn};
-use rustic::mach::{Keyboard, Screen, TimerHandlers, Serial, Machine};
+use rustic::arch::{Threads, ThreadSpawn};
+use rustic::mach::{Keyboard, Screen, Serial};
 use rustic::util;
 
 use alloc::sync::Arc;
-use alloc::boxed::Box;
-use util::sync::Spinlock;
 
-static mut global_ticks: usize = 0;
+static mut GLOBAL_TICKS: usize = 0;
 
 /*
 fn demo_screen() {
@@ -52,8 +46,8 @@ fn demo_serial(kernel: &Kernel) {
 /*
 fn ticks(ms: usize) {
     let tick_count = unsafe {
-        global_ticks += ms;
-        global_ticks
+        GLOBAL_TICKS += ms;
+        GLOBAL_TICKS
     };
 
     machine().screen_save_cursor();
@@ -64,7 +58,7 @@ fn ticks(ms: usize) {
     if tick_count % 1000 == 0 {
         if tick_count == 4000 {
             machine().screen_write_char('\\');
-            unsafe { global_ticks = 0 };
+            unsafe { GLOBAL_TICKS = 0 };
         } else if tick_count == 3000 {
             machine().screen_write_char('-');
         } else if tick_count == 2000 {
@@ -81,8 +75,8 @@ fn ticks(ms: usize) {
 
 #[no_mangle]
 pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
-    let mut kernel_state = Kernel::new();
-    let mut locked_kernel = kernel_state.start();
+    let kernel_state = Kernel::new();
+    let locked_kernel = kernel_state.start();
 
     // Do some initial demo work by taking the lock for an extended period
     let mut kernel = locked_kernel.lock().unwrap();
@@ -111,7 +105,7 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
     kernel.serial_write("This is on the serial port, awesome!\n");
 
     // Test concurrency
-    let mut cloned_kernel = Arc::clone(&locked_kernel);
+    let cloned_kernel = Arc::clone(&locked_kernel);
     kernel.spawn_thread(move || {
         let guard = cloned_kernel.lock().unwrap();
         guard.serial_write("This is ANOTHER thread using the serial port, awesome!\n");
@@ -120,7 +114,7 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
         loop { Kernel::reschedule(Arc::clone(&cloned_kernel)) };
     });
 
-    let mut cloned_kernel = Arc::clone(&locked_kernel);
+    let cloned_kernel = Arc::clone(&locked_kernel);
     kernel.spawn_thread(move || {
         let guard = cloned_kernel.lock().unwrap();
         guard.serial_write("This is a thread using the serial port, awesome!\n");

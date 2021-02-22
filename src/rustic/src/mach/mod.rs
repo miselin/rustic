@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use alloc::sync::Arc;
-
 use crate::util::colour;
 
 #[cfg(feature="plat_pc")]

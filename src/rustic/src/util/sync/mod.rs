@@ -23,9 +23,6 @@ use core::sync::atomic::AtomicBool;
 use core::ops::{Deref, DerefMut};
 use core::fmt;
 
-use crate::Kernel;
-use crate::mach::Machine;
-
 pub struct Spinlock<T: ?Sized> {
     atom: AtomicBool,
     data: UnsafeCell<T>

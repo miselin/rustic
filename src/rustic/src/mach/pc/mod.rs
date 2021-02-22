@@ -16,7 +16,7 @@
 
 use core::default::Default;
 
-use crate::mach::{IrqHandler, IrqController, HardwareTimer, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
+use crate::mach::{IrqController, HardwareTimer, Machine, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
 use crate::mach::parity::Parity;
 
 use alloc::collections::VecDeque;

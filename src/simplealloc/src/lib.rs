@@ -1,17 +1,15 @@
 
 #![no_std]
 
-use core;
-
-static mut HeapBase: usize = 0x200000;
+static mut HEAP_BASE: usize = 0x200000;
 
 pub unsafe fn direct_alloc(sz: usize, align: usize) -> *mut u8 {
-    if (HeapBase & (align -1)) != 0 {
-        HeapBase += align - (HeapBase % align);
+    if (HEAP_BASE & (align -1)) != 0 {
+        HEAP_BASE += align - (HEAP_BASE % align);
     }
 
-    let result = HeapBase;
-    HeapBase += sz;
+    let result = HEAP_BASE;
+    HEAP_BASE += sz;
 
     result as *mut u8
 }

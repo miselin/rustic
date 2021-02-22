@@ -15,7 +15,7 @@
  */
 
 use alloc::sync::Arc;
-use crate::util::sync::{Spinlock, SpinlockGuard};
+use crate::util::sync::Spinlock;
 use crate::Kernel;
 
 #[cfg(feature="arch_i386")]

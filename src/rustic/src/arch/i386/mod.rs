@@ -20,12 +20,9 @@ use alloc::sync::Arc;
 use core::mem::ManuallyDrop;
 use alloc::boxed::Box;
 
-use crate::util::sync::{Spinlock, SpinlockGuard};
+use crate::util::sync::Spinlock;
 
-use crate::arch::{Architecture, ArchitectureState, Threads, ThreadSpawn};
-use crate::mach::{Machine, Serial};
-
-use crate::util;
+use crate::arch::{Architecture, Threads, ThreadSpawn};
 
 use simplealloc;
 
@@ -137,7 +134,7 @@ impl Idle for Kernel {
 }
 
 impl<'a, F: FnMut() + Send + 'static> ThreadSpawn<F> for Kernel {
-    fn spawn_thread(&mut self, mut f: F) {
+    fn spawn_thread(&mut self, f: F) {
         let mut new_thread = Thread::new();
         new_thread.exec_state.eip = thread_trampoline as u32;
         new_thread.exec_state.ebx = get_thread_trampoline(&f) as u32;
@@ -165,7 +162,7 @@ impl Threads for Kernel {
         // We wrap the guard in a ManuallyDrop to avoid it being dropped
         // in the code paths here that run without a lock (in particular,
         // save_state will return twice).
-        let mut guard = lock.lock().unwrap();
+        let guard = lock.lock().unwrap();
         let mut obj = ManuallyDrop::new(guard);
         let state = &mut obj.arch.state;
 

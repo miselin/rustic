@@ -16,7 +16,7 @@
 
 use crate::Kernel;
 
-use crate::mach::{MachineState, IoPort, Screen, Mmio};
+use crate::mach::{IoPort, Screen, Mmio};
 
 use crate::util::colour::Colour;
 

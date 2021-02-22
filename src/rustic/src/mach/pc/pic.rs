@@ -22,19 +22,18 @@ use crate::util::sync::Spinlock;
 
 use crate::arch::{Architecture, TrapHandler};
 
-use crate::mach;
-use crate::mach::{IoPort, IrqController, IrqRegister, Serial};
+use crate::mach::{IoPort, IrqController, IrqRegister};
 
 use crate::Kernel;
 
 struct IrqHandler {
-    f: Box<FnMut(usize) + Send>,
+    f: Box<dyn FnMut(usize) + Send>,
     level: bool,
 }
 
-pub static RemapBase: usize = 0x20;
+pub static REMAP_BASE: usize = 0x20;
 
-static mut active_irqs: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+static mut ACTIVE_IRQS: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
 
 pub struct Pic {
     irqhandlers: Arc<Spinlock<[Option<IrqHandler>; 16]>>,
@@ -51,8 +50,8 @@ impl IrqController for Kernel {
     fn init_irqs(&mut self) {
         self.outport(0x20, 0x11u8);
         self.outport(0xA0, 0x11u8);
-        self.outport(0x21, RemapBase as u8); // Remap to start at the remap base.
-        self.outport(0xA1, (RemapBase + 8) as u8);
+        self.outport(0x21, REMAP_BASE as u8); // Remap to start at the remap base.
+        self.outport(0xA1, (REMAP_BASE + 8) as u8);
         self.outport(0x21, 0x04u8);
         self.outport(0xA1, 0x02u8);
         self.outport(0x21, 0x01u8);
@@ -102,14 +101,14 @@ impl<F: FnMut(usize) + Send + 'static> IrqRegister<F> for Kernel {
         handlers[irq] = Some(irqhandler);
         drop(handlers);
 
-        self.register_trap(irq + RemapBase, irq_stub);
+        self.register_trap(irq + REMAP_BASE, irq_stub);
     }
 }
 
 impl TrapHandler for Kernel {
-    fn trap(&mut self, num: usize) {
+    fn trap(&mut self, _num: usize) {
         /*
-        let irqnum = num - RemapBase;
+        let irqnum = num - REMAP_BASE;
 
         // Get status registers for master/slave
         kernel().machine().outport(0x20, 0x0Bu8);
@@ -162,7 +161,7 @@ impl TrapHandler for Kernel {
     }
 }
 
-fn irq_stub(which: usize) {
+fn irq_stub(_which: usize) {
     // TODO: this happens in a different execution context and might be unsafe?
     // kernel_mut().machine_mut().state.irq_ctlr.trap(which)
 }
