@@ -33,14 +33,18 @@ struct GdtEntry {
     base_high: u8,
 }
 
-pub struct Gdt {
+struct Gdt {
     table: GdtTable,
     reg: GdtRegister,
 }
 
+// External variable in assembly code (not actually a function)
+extern {fn tls_emul_segment(); }
+
+static mut gdt: Gdt = Gdt::new();
 
 impl Gdt {
-    pub fn new() -> Gdt {
+    const fn new() -> Gdt {
         Gdt{table: [GdtEntry::new(); 16], reg: GdtRegister::new(0 as *const GdtTable)}
     }
 
@@ -55,16 +59,16 @@ impl Gdt {
 }
 
 impl GdtRegister {
-    fn new(gdt: *const GdtTable) -> GdtRegister {
+    const fn new(table: *const GdtTable) -> GdtRegister {
         GdtRegister {
-            addr: gdt,
+            addr: table,
             limit: (std::mem::size_of::<GdtTable>() + 1) as u16,
         }
     }
 }
 
 impl GdtEntry {
-    fn new() -> GdtEntry {
+    const fn new() -> GdtEntry {
         GdtEntry{limit_low: 0, base_low: 0, base_mid: 0, access: 0, gran: 0, base_high: 0}
     }
 
@@ -77,6 +81,19 @@ impl GdtEntry {
             gran: gran,
             base_high: ((base >> 24) & 0xFF) as u8,
         }
+    }
+}
+
+pub fn setup_gdt() {
+    // Mutable global static, but only used here.
+    unsafe {
+        gdt.entry(0, 0, 0, 0, 0); // 0x00 - NULL
+        gdt.entry(1, 0, 0xFFFFFFFF, 0x98, 0xCF); // 0x08 - Kernel Code
+        gdt.entry(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // 0x10 - Kernel Data
+        gdt.entry(3, 0, 0xFFFFFFFF, 0xF8, 0xCF); // 0x18 - User Code
+        gdt.entry(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // 0x20 - User Data
+        gdt.entry(5, tls_emul_segment as u32, 0xFFFFFFFF, 0x92, 0xCF); // 0x28 - TLS emulation (for stack switching support)
+        gdt.load(0x08, 0x10, 0x28);
     }
 }
 

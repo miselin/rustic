@@ -33,7 +33,7 @@ impl Pit {
     }
 }
 
-impl<'a> HardwareTimer for Kernel<'a> {
+impl HardwareTimer for Kernel {
     fn init_timers(&mut self, freq: usize) {
         self.mach.state.timer.timer_hz = freq;
 

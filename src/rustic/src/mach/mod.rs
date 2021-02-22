@@ -14,8 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::util::colour;
 
@@ -46,10 +45,8 @@ pub trait Machine {
     fn mach_initialise(&mut self) -> bool;
 }
 
-pub trait IrqController<'a> {
+pub trait IrqController {
     fn init_irqs(&mut self);
-
-    fn register_irq(&mut self, irq: usize, f: &'a dyn IrqHandler, level_trigger: bool);
 
     // Mask or unmask the given IRQ using the machine-specific implementation.
     fn enable_irq(&self, irq: usize);
@@ -61,6 +58,10 @@ pub trait IrqController<'a> {
 
 pub trait IrqHandler {
     fn irq(&self, irqnum: usize);
+}
+
+pub trait IrqRegister<F> {
+    fn register_irq(&mut self, irq: usize, handler: F, level_trigger: bool);
 }
 
 pub trait Keyboard {
@@ -87,8 +88,8 @@ pub trait IoPort {
     fn inport<T: std::default::Default>(&self, port: u16) -> T;
 }
 
-pub trait Serial<'a> {
-    fn serial_config(&'a self, baud: i32, data_bits: i32, parity: parity::Parity, stop_bits: i32);
+pub trait Serial {
+    fn serial_config(&self, baud: i32, data_bits: i32, parity: parity::Parity, stop_bits: i32);
     fn serial_write(&self, s: &str);
     fn serial_read_char(&self) -> char;
     fn serial_write_char(&self, c: char);
@@ -118,17 +119,17 @@ pub trait Mmio {
     fn mmio_read<T>(&self, address: u32) -> T;
 }
 
-pub struct MachineState<'a> {
+pub struct MachineState {
     initialised: bool,
-    state: state::State<'a>,
+    state: state::State,
 }
 
-impl<'a> MachineState<'a> {
-    fn new() -> MachineState<'a> {
+impl MachineState {
+    fn new() -> MachineState {
         MachineState{initialised: false, state: state::State::new()}
     }
 }
 
-pub fn create<'a>() -> MachineState<'a> {
+pub fn create() -> MachineState {
     MachineState::new()
 }

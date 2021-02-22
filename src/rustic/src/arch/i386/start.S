@@ -179,6 +179,15 @@ restore_state:
     push %edx
     ret
 
+.global thread_trampoline
+.type thread_trampoline, @function
+thread_trampoline:
+    # esi holds the user data we need to pass to the trampoline
+    # ebx holds the actual trampoline to jump to
+    push %esi
+    call *%ebx
+    int3  # trampoline never returns
+
 .global set_isr_handler
 .type set_isr_handler, @function
 set_isr_handler:

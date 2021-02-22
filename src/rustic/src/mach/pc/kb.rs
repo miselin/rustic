@@ -54,14 +54,14 @@ impl PS2Keyboard {
         // TODO: write the key into a queue that can be read out of!
     }
 
-    fn kbcmdwait<'a, 'b>(&self, kernel: &'b Kernel<'a>) {
+    fn kbcmdwait(&self, kernel: &Kernel) {
         loop {
             let status: u8 = kernel.inport(KEYBOARD_DATA);
             if status & 0x2 == 0 { break; }
         }
     }
 
-    fn kbdatawait<'a, 'b>(&self, kernel: &'b Kernel<'a>) {
+    fn kbdatawait(&self, kernel: &Kernel) {
         loop {
             let status: u8 = kernel.inport(KEYBOARD_DATA);
             if status & 0x1 != 0 { break; }
@@ -69,7 +69,7 @@ impl PS2Keyboard {
     }
 }
 
-impl<'a> Keyboard for Kernel<'a> {
+impl Keyboard for Kernel {
     fn kb_init(&mut self) {
         // Put the keyboard into scan code set 1, ready for our mapping.
         self.mach.state.keyboard.kbcmdwait(self);

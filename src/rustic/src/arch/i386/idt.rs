@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use std::sync::Arc;
+
+use crate::util::sync::Spinlock;
+
 type IdtTable = [IdtEntry; 256];
 
 // One handler per interrupt line.
@@ -46,20 +50,26 @@ struct InterruptHandler {
     f: extern "Rust" fn(usize),
 }
 
-pub struct Idt {
+struct InternalIdt {
     table: [IdtEntry; 256],
-    handlers: [InterruptHandler; 256],
     reg: IdtRegister,
 }
 
-impl Idt {
-    pub fn new() -> Idt {
-        Idt{table: [IdtEntry::new(); 256],
-            handlers: [InterruptHandler::new(default_trap); 256],
-            reg: IdtRegister::new(0 as *const IdtTable)}
+static mut idt: InternalIdt = InternalIdt::new();
+
+pub struct Idt {
+    handlers: Arc<Spinlock<[InterruptHandler; 256]>>
+}
+
+impl InternalIdt {
+    const fn new() -> InternalIdt {
+        InternalIdt {
+            table: [IdtEntry::new(); 256],
+            reg: IdtRegister::new(0 as *const IdtTable)
+        }
     }
 
-    pub fn init(&mut self) {
+    fn init(&mut self) {
         let mut base = isrs_base as u32;
         for i in 0..256 {
             self.entry(i, base, 0x08u16, 0x8E);
@@ -73,10 +83,6 @@ impl Idt {
         unsafe { set_isr_handler(isr_rustentry as usize) };
     }
 
-    pub fn register(&mut self, index: usize, handler: extern "Rust" fn(usize)) {
-        self.handlers[index] = InterruptHandler::new(handler);
-    }
-
     fn load(&self) {
         unsafe { llvm_asm!("lidt ($0)" :: "r" (&self.reg)); }
     }
@@ -84,24 +90,39 @@ impl Idt {
     fn entry(&mut self, index: usize, handler: u32, sel: u16, flags: u8) {
         self.table[index] = IdtEntry::create(handler, sel, flags)
     }
+}
+
+impl Idt {
+    pub fn new() -> Idt {
+        Idt{handlers: Arc::new(Spinlock::new([InterruptHandler::new(default_trap); 256]))}
+    }
+
+    pub fn init(&mut self) {
+        unsafe { idt.init(); }
+    }
+
+    pub fn register(&mut self, index: usize, handler: extern "Rust" fn(usize)) {
+        let mut handlers = *self.handlers.lock().unwrap();
+        handlers[index] = InterruptHandler::new(handler);
+    }
 
     fn trap(&self, which: usize) {
-        let f = self.handlers[which].f;
-        f(which);
+        let mut handlers = self.handlers.lock().unwrap();
+        (handlers[which].f)(which);
     }
 }
 
 impl IdtRegister {
-    pub fn new(idt: *const IdtTable) -> IdtRegister {
+    const fn new(table: *const IdtTable) -> IdtRegister {
         IdtRegister {
-            addr: idt,
+            addr: table,
             limit: (std::mem::size_of::<IdtTable>() + 1) as u16,
         }
     }
 }
 
 impl IdtEntry {
-    fn new() -> IdtEntry {
+    const fn new() -> IdtEntry {
         IdtEntry{handler_low: 0, selector: 0, always0: 0, flags: 0, handler_high: 0}
     }
 

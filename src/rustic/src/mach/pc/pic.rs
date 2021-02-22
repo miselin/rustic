@@ -14,38 +14,39 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use std::sync::atomic;
+use std::sync::Arc;
+
+use crate::util::sync::Spinlock;
+
 use crate::arch::{Architecture, TrapHandler};
 
 use crate::mach;
-use crate::mach::{IoPort, IrqController, Serial};
+use crate::mach::{IoPort, IrqController, IrqRegister, Serial};
 
 use crate::Kernel;
 
-struct IrqHandler<'a> {
-    f: &'a dyn mach::IrqHandler,
+struct IrqHandler {
+    f: Box<FnMut(usize) + Send>,
     level: bool,
-}
-
-impl<'a> IrqHandler<'a> {
-    fn call(&'a self, irqnum: usize) {
-        self.f.irq(irqnum);
-    }
 }
 
 pub static RemapBase: usize = 0x20;
 
-pub struct Pic<'a> {
-    irqhandlers: [Option<IrqHandler<'a>>; 16],
+static mut active_irqs: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+
+pub struct Pic {
+    irqhandlers: Arc<Spinlock<[Option<IrqHandler>; 16]>>,
 }
 
-impl<'a> Pic<'a> {
-    pub fn new() -> Pic<'a> {
-        Pic{irqhandlers: [None, None, None, None, None, None, None, None,
-                          None, None, None, None, None, None, None, None]}
+impl Pic {
+    pub fn new() -> Pic {
+        Pic{irqhandlers: Arc::new(Spinlock::new([None, None, None, None, None, None, None, None,
+                                                 None, None, None, None, None, None, None, None]))}
     }
 }
 
-impl<'a> IrqController<'a> for Kernel<'a> {
+impl IrqController for Kernel {
     fn init_irqs(&mut self) {
         self.outport(0x20, 0x11u8);
         self.outport(0xA0, 0x11u8);
@@ -59,13 +60,6 @@ impl<'a> IrqController<'a> for Kernel<'a> {
         // Mask all, machine layer will call our enable() when an IRQ is registered.
         self.outport(0x21, 0xFFu8);
         self.outport(0xA1, 0xFFu8);
-    }
-
-    fn register_irq(&mut self, irq: usize, f: &'a dyn mach::IrqHandler, level_trigger: bool) {
-        let irqhandler = IrqHandler{f: f, level: level_trigger};
-        self.mach.state.irq_ctlr.irqhandlers[irq] = Some(irqhandler);
-
-        self.register_trap(irq + RemapBase, irq_stub);
     }
 
     fn enable_irq(&self, irq: usize) {
@@ -100,7 +94,18 @@ impl<'a> IrqController<'a> for Kernel<'a> {
     }
 }
 
-impl TrapHandler for Pic<'_> {
+impl<F: FnMut(usize) + Send + 'static> IrqRegister<F> for Kernel {
+    fn register_irq(&mut self, irq: usize, handler: F, level_trigger: bool) {
+        let irqhandler = IrqHandler{f: Box::new(handler), level: level_trigger};
+        let mut handlers = self.mach.state.irq_ctlr.irqhandlers.lock().unwrap();
+        handlers[irq] = Some(irqhandler);
+        drop(handlers);
+
+        self.register_trap(irq + RemapBase, irq_stub);
+    }
+}
+
+impl TrapHandler for Kernel {
     fn trap(&mut self, num: usize) {
         /*
         let irqnum = num - RemapBase;
@@ -138,7 +143,7 @@ impl TrapHandler for Pic<'_> {
                     self.eoi(irqnum);
                 }
 
-                handler.call(irqnum);
+                (handler)(irqnum);
 
                 if handler.level == true {
                     self.eoi(irqnum);

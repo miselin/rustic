@@ -32,8 +32,8 @@ enum Registers {
 
 static SERIAL_BASE: u16 = 0x3F8;
 
-impl<'a> Serial<'a> for Kernel<'a> {
-    fn serial_config(&'a self, baud: i32, dbits: i32, parity: Parity, sbits: i32) {
+impl Serial for Kernel {
+    fn serial_config(&self, baud: i32, dbits: i32, parity: Parity, sbits: i32) {
         // Disable IRQs.
         self.outport(SERIAL_BASE + Registers::Inten as u16, 0 as u8);
 

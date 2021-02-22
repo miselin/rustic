@@ -18,13 +18,14 @@
 #![feature(lang_items)]
 #![feature(rustc_private)]
 #![feature(restricted_std)]
+#![feature(negative_impls)]
 #![allow(dead_code)]
 
 #![no_main]
 
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler, Serial};
-pub use arch::{Architecture, Threads};
+pub use arch::{Architecture, Threads, ThreadSpawn};
 
 // Pull in the architectural layer (CPU etc).
 pub mod arch;
@@ -35,32 +36,32 @@ pub mod mach;
 // Pull in utils library.
 pub mod util;
 
-pub struct Kernel<'a> {
-    mach: mach::MachineState<'a>,
+use std::sync::Arc;
+use util::sync::Spinlock;
+
+pub struct Kernel {
+    mach: mach::MachineState,
     arch: arch::ArchitectureState,
 }
 
 // Required to be defined by the application.
 extern "Rust" { fn run(k: &mut Kernel); }
 
-/*
-#[no_mangle]
-pub extern "C" fn abort() -> ! {
-    // TODO: should this be provided by the application?
-    printlnto!(serial, "Abort!");
-    loop {}
+pub trait Idle {
+    fn idle();
 }
-*/
 
-impl<'a> Kernel<'a> {
-    pub fn new() -> Kernel<'a> {
+impl Kernel {
+    pub fn new() -> Kernel {
         Kernel {
             mach: mach::create(),
             arch: arch::create()
         }
     }
 
-    pub fn start(&'a mut self, app: extern "Rust" fn(&mut Kernel)) {
+    // Sets up the kernel, and then returns a wrapped version of the Kernel
+    // that is correctly prepared for concurrency.
+    pub fn start(mut self) -> Arc<Spinlock<Kernel>> {
         // Now we can initialise the system.
         self.arch_initialise();
         self.mach_initialise();
@@ -70,34 +71,16 @@ impl<'a> Kernel<'a> {
 
         // Enable IRQs and start up the application.
         self.set_interrupts(true);
-        /*
-        self.spawn(|| {
-            unsafe { run(self) };
-        })
-        */
 
-        // Run the application.
-        unsafe { app(self) };
+        Arc::new(Spinlock::new(self))
     }
 
-    pub fn architecture<'b>(&'b self) -> &'b arch::ArchitectureState {
-        &self.arch
-    }
-
-    pub fn architecture_mut<'b>(&'b mut self) -> &'b mut arch::ArchitectureState {
-        &mut self.arch
-    }
-
-    pub fn machine<'b>(&'b self) -> &'b mach::MachineState<'a> {
-        &self.mach
-    }
-
-    pub fn machine_mut<'b>(&'b mut self) -> &'b mut mach::MachineState<'a> {
-        &mut self.mach
-    }
-
-    pub fn spawn(&mut self, f: fn()) {
+    pub fn spawn<F>(&mut self, f: F)
+    where
+        F: FnMut(),
+        F: Send,
+        F: 'static
+    {
         self.spawn_thread(f);
-        self.reschedule();
     }
 }

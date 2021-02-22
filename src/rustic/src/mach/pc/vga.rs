@@ -56,7 +56,7 @@ impl Vga {
     }
 }
 
-impl<'a> Screen for Kernel<'a> {
+impl Screen for Kernel {
     fn screen_clear(&self) {
         self.screen_fill(' ');
     }

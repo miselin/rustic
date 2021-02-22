@@ -14,6 +14,10 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use std::sync::Arc;
+use crate::util::sync::{Spinlock, SpinlockGuard};
+use crate::Kernel;
+
 #[cfg(feature="arch_i386")]
 mod i386;
 
@@ -37,13 +41,15 @@ pub trait Architecture {
     fn wait_for_event(&self);
 }
 
-pub trait Threads {
-    fn spawn_thread(&mut self, f: fn());
+pub trait ThreadSpawn<F> {
+    fn spawn_thread(&mut self, f: F);
+}
 
+pub trait Threads {
     fn thread_terminate(&mut self) -> !;
 
     // Trigger a reschedule.
-    fn reschedule(&mut self);
+    fn reschedule(lock: &Arc<Spinlock<Kernel>>);
 }
 
 pub trait TrapHandler {

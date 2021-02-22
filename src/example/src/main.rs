@@ -13,12 +13,15 @@
  * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
+#![feature(llvm_asm)]
 #![feature(globs)]
 #![feature(restricted_std)]
 
 #![no_main]
 
-use rustic::Kernel;
+use std::panic;
+
+use rustic::{Kernel, Idle};
 
 use rustic::arch;
 use rustic::mach;
@@ -26,6 +29,9 @@ use rustic::mach;
 use rustic::arch::{Architecture, Threads};
 use rustic::mach::{Keyboard, Screen, TimerHandlers, Serial};
 use rustic::util;
+
+use std::sync::Arc;
+use util::sync::Spinlock;
 
 static mut global_ticks: usize = 0;
 
@@ -37,7 +43,7 @@ fn demo_screen() {
 }
 */
 
-fn demo_serial(kernel: &mut Kernel) {
+fn demo_serial(kernel: &Kernel) {
     kernel.serial_write("Hello from the Rustic demo!\n");
     kernel.serial_write("The serial port supports full UTF-8 - ☃.\n");
 }
@@ -73,23 +79,22 @@ fn ticks(ms: usize) {
 */
 
 #[no_mangle]
-pub extern "C" fn main(_argc: i32, _: *const *const u8) -> i32 {
+pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
     let mut kernel_state = Kernel::new();
-    kernel_state.start(run);
+    let mut locked_kernel = kernel_state.start();
 
-    0
-}
+    // Do some initial demo work by taking the lock for an extended period
+    let mut kernel = locked_kernel.lock().unwrap();
 
-// Demo - shows off some of the features Rustic can provide.
-fn run(kernel: &mut Kernel) {
     // Wipe screen, prepare for writing text.
-    kernel.screen_attrib(util::colour::Colour::LightGray, util::colour::Colour::Black);
+    kernel.screen_attrib(util::colour::Colour::Black, util::colour::Colour::LightGray);
     kernel.screen_clear();
     kernel.screen_cursor(0, 0);
+    kernel.screen_write("Hello from Rustic");
 
     // Demo messages.
     //demo_screen();
-    demo_serial(kernel);
+    demo_serial(&kernel);
 
     // Set up our timer handler.
     // kernel.machine().register_timer(ticks);
@@ -104,15 +109,34 @@ fn run(kernel: &mut Kernel) {
     // Test serial port.
     kernel.serial_write("This is on the serial port, awesome!\n");
 
-    // Demo a thread printing a message.
-    /*
-    spawn(proc() {
-        println!("Hello, from a thread!");
+    // Now move into concurrency - we need to reduce the scope of each lock
+    let mut cloned_kernel = Arc::clone(&locked_kernel);
+    kernel.spawn(move || {
+        let guard = cloned_kernel.lock().unwrap();
+        guard.serial_write("This is a thread using the serial port, awesome!\n");
+        drop(guard);
+
+        loop { Kernel::reschedule(&cloned_kernel) };
     });
-    */
+
+    let mut cloned_kernel = Arc::clone(&locked_kernel);
+    kernel.spawn(move || {
+        let guard = cloned_kernel.lock().unwrap();
+        guard.serial_write("This is ANOTHER thread using the serial port, awesome!\n");
+        drop(guard);
+
+        loop { Kernel::reschedule(&cloned_kernel) };
+    });
+
+    kernel.serial_write("About to drop!\n");
+    drop(kernel);
+
+    let kernel = locked_kernel.lock().unwrap();
+    kernel.serial_write("Drop then reacquire works!\n");
+    drop(kernel);
 
     loop {
-      kernel.wait_for_event();
-      kernel.reschedule();
+        Kernel::reschedule(&locked_kernel);
+        // Kernel::idle();
     }
 }

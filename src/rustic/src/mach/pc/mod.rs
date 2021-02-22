@@ -30,16 +30,16 @@ mod pit;
 mod serial;
 mod vga;
 
-pub struct State<'a> {
-    irq_ctlr: pic::Pic<'a>,
+pub struct State {
+    irq_ctlr: pic::Pic,
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
     screen: vga::Vga,
     timer_handlers: Vec<extern "Rust" fn(usize)>,
 }
 
-impl<'a> State<'a> {
-    pub fn new() -> State<'a> {
+impl State {
+    pub fn new() -> State {
         State{irq_ctlr: pic::Pic::new(),
               timer: pit::Pit::new(),
               keyboard: kb::PS2Keyboard::new(),
@@ -48,7 +48,7 @@ impl<'a> State<'a> {
     }
 }
 
-impl<'a> Machine for Kernel<'a> {
+impl Machine for Kernel {
     fn mach_initialise(&mut self) -> bool {
         // Configure serial port.
         self.serial_config(115200, 8, Parity::NoParity, 1);
@@ -79,7 +79,7 @@ impl<'a> Machine for Kernel<'a> {
     }
 }
 
-impl<'a> TimerHandlers for Kernel<'a> {
+impl<'a> TimerHandlers for Kernel {
     fn register_timer(&mut self, f: extern "Rust" fn(usize)) {
         self.mach.state.timer_handlers.push(f);
     }
@@ -92,7 +92,7 @@ impl<'a> TimerHandlers for Kernel<'a> {
     }
 }
 
-impl<'a> IoPort for Kernel<'a> {
+impl<'a> IoPort for Kernel {
     fn outport<T>(&self, port: u16, val: T) {
         unsafe {
             llvm_asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
@@ -108,7 +108,7 @@ impl<'a> IoPort for Kernel<'a> {
     }
 }
 
-impl<'a> Mmio for Kernel<'a> {
+impl<'a> Mmio for Kernel {
     fn mmio_write<T>(&self, address: u32, val: T) {
         let ptr = address as *mut T;
         unsafe { std::ptr::write(ptr, val) };
