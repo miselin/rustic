@@ -22,7 +22,7 @@ use crate::util::sync::Spinlock;
 
 use crate::arch::{Architecture, TrapHandler};
 
-use crate::mach::{IoPort, IrqController, IrqHandler, IrqRegister, Machine};
+use crate::mach::{IoPort, IrqController, IrqHandler, IrqRegister, Machine, Serial};
 
 use crate::Kernel;
 
@@ -102,47 +102,49 @@ impl<F: FnMut(usize) + Send + 'static> IrqRegister<F> for Kernel {
     }
 }
 
-impl TrapHandler for Pic {
-    fn trap(&mut self, _num: usize) {
-        Kernel::debug("irq!\n");
+impl TrapHandler for Kernel {
+    fn trap(&mut self, num: usize) {
+        let irq_ctlr = &self.mach.state.irq_ctlr;
 
-        /*
         let irqnum = num - REMAP_BASE;
 
         // Get status registers for master/slave
-        kernel().machine().outport(0x20, 0x0Bu8);
-        kernel().machine().outport(0xA0, 0x0Bu8);
-        let slaveisr: u8 = kernel().machine().inport(0xA0);
-        let masterisr: u8 = kernel().machine().inport(0x20);
+        self.outport(0x20, 0x0Bu8);
+        self.outport(0xA0, 0x0Bu8);
+        let slaveisr: u8 = self.inport(0xA0);
+        let masterisr: u8 = self.inport(0x20);
         let isr: u16 = ((slaveisr as u16) << 8) | (masterisr as u16);
 
         // Spurious IRQ?
         if irqnum == 7 {
             if (isr & (1 << 7)) == 0 {
-                kernel().machine().serial_write("spurious IRQ 7\n");
+                self.serial_write("spurious IRQ 7\n");
                 return;
             }
         } else if irqnum == 15 {
             if (isr & (1 << 15)) == 0 {
-                kernel().machine().serial_write("spurious IRQ 15\n");
+                self.serial_write("spurious IRQ 15\n");
                 self.eoi(7);
                 return;
             }
         }
 
         if (isr & (1 << irqnum)) == 0 {
-            kernel().machine().serial_write("IRQ stub called with no interrupt status");
+            self.serial_write("IRQ stub called with no interrupt status\n");
             return;
         }
 
         // Get the handler we need.
-        match self.irqhandlers[irqnum] {
+        // TODO: mark as active and let a thread handle the code so we don't
+        // spend forever in the IRQ handler running code
+        match irq_ctlr.irqhandlers[irqnum] {
             Some(ref handler) => {
                 if handler.level == false {
                     self.eoi(irqnum);
                 }
 
-                (handler)(irqnum);
+                Kernel::debug("(would call irq handler)\n");
+                // (handler.f)(irqnum);
 
                 if handler.level == true {
                     self.eoi(irqnum);
@@ -150,16 +152,13 @@ impl TrapHandler for Pic {
             },
             None => {
                 // Unhandled IRQ, just send the EOI and hope all's well.
-                kernel().machine().serial_write("Unhandled IRQ");
+                self.serial_write("Unhandled IRQ");
                 self.eoi(irqnum);
             }
         };
-        */
-
-        // todo
     }
 }
 
 fn irq_stub(which: usize) {
-    Kernel::kernel().lock().unwrap().mach.state.irq_ctlr.trap(which);
+    Kernel::kernel().lock().unwrap().trap(which);
 }
