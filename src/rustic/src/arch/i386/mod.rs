@@ -14,13 +14,16 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::collections::VecDeque;
-use std::os::raw::c_void;
-use std::sync::Arc;
+use alloc::collections::VecDeque;
+use core::ffi::c_void;
+use alloc::sync::Arc;
+use core::mem::ManuallyDrop;
+use alloc::boxed::Box;
+
 use crate::util::sync::{Spinlock, SpinlockGuard};
 
 use crate::arch::{Architecture, ArchitectureState, Threads, ThreadSpawn};
-use crate::mach::Serial;
+use crate::mach::{Machine, Serial};
 
 use crate::util;
 
@@ -50,7 +53,7 @@ struct Thread {
 pub struct State {
     idt: idt::Idt,
     ready_threads: VecDeque<Thread>,
-    running_thread: Thread,
+    running_thread: Option<Thread>,
     alive: bool,
 }
 
@@ -58,16 +61,16 @@ pub struct State {
 extern { fn thread_trampoline(); }
 
 extern "C" {
-    fn save_state(state: *mut ThreadState) -> std::os::raw::c_uint;
-    fn restore_state(state: *const ThreadState) -> std::os::raw::c_uint;
+    fn save_state(state: *mut ThreadState) -> u32;
+    fn restore_state(state: *const ThreadState) -> u32;
 }
 
 impl State {
     pub fn new() -> State {
         State{
             idt: idt::Idt::new(),
-            ready_threads: VecDeque::with_capacity(16),
-            running_thread: Thread::new(),
+            ready_threads: VecDeque::new(),
+            running_thread: None,
             alive: false,
         }
     }
@@ -77,14 +80,7 @@ impl Thread {
     pub fn new() -> Thread {
         Thread{
             exec_state: ThreadState::new(),
-            is_alive: false,
-        }
-    }
-
-    pub fn copy(&self) -> Thread {
-        Thread{
-            exec_state: self.exec_state,
-            is_alive: self.is_alive,
+            is_alive: false
         }
     }
 }
@@ -141,19 +137,11 @@ impl Idle for Kernel {
 }
 
 impl<'a, F: FnMut() + Send + 'static> ThreadSpawn<F> for Kernel {
-    fn spawn_thread(&mut self, mut f: F)
-    {
-        let mut thread_closure = move || {
-            f();
-            // TODO: need to terminate() after the closure, but we'd need to capture
-            // self with a static lifetime.
-            loop {}
-        };
-
+    fn spawn_thread(&mut self, mut f: F) {
         let mut new_thread = Thread::new();
         new_thread.exec_state.eip = thread_trampoline as u32;
-        new_thread.exec_state.ebx = get_thread_trampoline(&thread_closure) as u32;
-        new_thread.exec_state.esi = &mut thread_closure as *mut _ as u32;
+        new_thread.exec_state.ebx = get_thread_trampoline(&f) as u32;
+        new_thread.exec_state.esi = Box::into_raw(Box::new(f)) as *mut () as u32;
 
         // TODO(miselin): do this way better than this.
         let stack = unsafe { simplealloc::direct_alloc(4096, 16) } as *mut u32;
@@ -168,37 +156,43 @@ impl<'a, F: FnMut() + Send + 'static> ThreadSpawn<F> for Kernel {
 
 impl Threads for Kernel {
     fn thread_terminate(&mut self) -> ! {
-        self.arch.state.running_thread.is_alive = false;
+        // self.arch.state.running_thread.is_alive = false;
+        // todo...
         loop {}
     }
 
-    fn reschedule(lock: &Arc<Spinlock<Kernel>>) {
-        let mut obj = lock.lock().unwrap();
+    fn reschedule(lock: Arc<Spinlock<Kernel>>) {
+        // We wrap the guard in a ManuallyDrop to avoid it being dropped
+        // in the code paths here that run without a lock (in particular,
+        // save_state will return twice).
+        let mut guard = lock.lock().unwrap();
+        let mut obj = ManuallyDrop::new(guard);
+        let state = &mut obj.arch.state;
 
-        if obj.arch.state.ready_threads.is_empty() {
+        if state.ready_threads.is_empty() {
+            unsafe { ManuallyDrop::drop(&mut obj) };
             return;
         }
 
         // Only save old state if there is an old state to save.
-        if obj.arch.state.alive {
-            let mut old_thread = obj.arch.state.running_thread.copy();
-
-            if old_thread.is_alive {
+        if state.alive {
+            if let Some(mut old_thread) = state.running_thread.take() {
                 if unsafe { save_state(&mut old_thread.exec_state) } == 1 {
                     // Just got context-switched to.
                     return;
                 }
 
-                // Now that state is saved, push the old thread to the running queue.
-                obj.arch.state.ready_threads.push_back(old_thread);
+                // Now that state is saved, move the thread back to the ready queue.
+                state.ready_threads.push_back(old_thread);
             }
         }
 
         // Load new state.
-        obj.arch.state.running_thread = obj.arch.state.ready_threads.pop_front().unwrap();
-        obj.arch.state.alive = true;
-        let new_state = obj.arch.state.running_thread.exec_state.clone();
-        drop(obj);  // unlock right before we load the new context
+        let new_thread = state.ready_threads.pop_front().unwrap();
+        let new_state = new_thread.exec_state.clone();
+        state.running_thread = Some(new_thread);  // move into the Option
+        state.alive = true;
+        unsafe { ManuallyDrop::drop(&mut obj) };  // unlock right before we load the new context
         unsafe { restore_state(&new_state) };
 
         // unreachable
@@ -208,14 +202,19 @@ impl Threads for Kernel {
 
 pub type RustThreadTrampoline = unsafe extern "C" fn(*mut c_void) -> !;
 
-pub extern "C" fn rust_spawned_trampoline<F>(data: *mut c_void) -> !
+pub unsafe extern "C" fn rust_spawned_trampoline<F>(data: *mut c_void) -> !
 where
     F: FnMut(),
     F: Send,
     F: 'static
 {
-    let entry = unsafe { &mut *(data as *mut F) };
+    let entry = &mut *(data as *mut F);
     entry();
+
+    // On return from the thread entry point, drop the closure
+    Box::from_raw(data as *mut F);
+
+    // TODO: figure out how to do termination.
     loop {}
 }
 

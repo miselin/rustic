@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::util::colour;
 
@@ -43,6 +43,9 @@ pub mod parity {
 
 pub trait Machine {
     fn mach_initialise(&mut self) -> bool;
+
+    // Static method to debug using whatever means necessary.
+    fn debug(msg: &str);
 }
 
 pub trait IrqController {
@@ -85,7 +88,7 @@ pub trait Gpio {
 
 pub trait IoPort {
     fn outport<T>(&self, port: u16, val: T);
-    fn inport<T: std::default::Default>(&self, port: u16) -> T;
+    fn inport<T: core::default::Default>(&self, port: u16) -> T;
 }
 
 pub trait Serial {

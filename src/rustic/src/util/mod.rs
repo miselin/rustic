@@ -17,8 +17,6 @@
 #![macro_use]
 
 pub mod mem;
-pub mod libc;
-pub mod io;
 pub mod sync;
 
 pub mod colour {

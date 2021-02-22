@@ -3,6 +3,6 @@
 target = "build-etc/i686-unknown-none.json"
 
 [unstable]
-build-std = ["core", "compiler_builtins", "std", "panic_abort"]
+build-std = ["core", "compiler_builtins", "panic_abort", "alloc"]
 build-std-features = ["compiler-builtins-mem"]
 extra-link-arg = true

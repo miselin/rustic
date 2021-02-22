@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::alloc::{GlobalAlloc, Layout, alloc};
-use std::ptr::null_mut;
+use core::alloc::{GlobalAlloc, Layout};
+use core::ptr::null_mut;
 
 use simplealloc;
 

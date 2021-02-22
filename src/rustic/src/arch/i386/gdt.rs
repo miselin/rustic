@@ -62,7 +62,7 @@ impl GdtRegister {
     const fn new(table: *const GdtTable) -> GdtRegister {
         GdtRegister {
             addr: table,
-            limit: (std::mem::size_of::<GdtTable>() + 1) as u16,
+            limit: (core::mem::size_of::<GdtTable>() + 1) as u16,
         }
     }
 }

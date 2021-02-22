@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 use crate::util::sync::{Spinlock, SpinlockGuard};
 use crate::Kernel;
 
@@ -49,7 +49,7 @@ pub trait Threads {
     fn thread_terminate(&mut self) -> !;
 
     // Trigger a reschedule.
-    fn reschedule(lock: &Arc<Spinlock<Kernel>>);
+    fn reschedule(lock: Arc<Spinlock<Kernel>>);
 }
 
 pub trait TrapHandler {

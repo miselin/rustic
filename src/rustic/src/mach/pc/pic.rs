@@ -14,8 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::sync::atomic;
-use std::sync::Arc;
+use core::sync::atomic;
+use alloc::sync::Arc;
+use alloc::boxed::Box;
 
 use crate::util::sync::Spinlock;
 

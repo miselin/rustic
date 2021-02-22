@@ -14,13 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std;
-use std::cell::RefCell;
-use std::default::Default;
-use std::rc::Rc;
+use core::default::Default;
 
 use crate::mach::{IrqHandler, IrqController, HardwareTimer, Machine, MachineState, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
 use crate::mach::parity::Parity;
+
+use alloc::collections::VecDeque;
 
 use crate::Kernel;
 
@@ -35,7 +34,7 @@ pub struct State {
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
     screen: vga::Vga,
-    timer_handlers: Vec<extern "Rust" fn(usize)>,
+    timer_handlers: VecDeque<extern "Rust" fn(usize)>,
 }
 
 impl State {
@@ -44,7 +43,21 @@ impl State {
               timer: pit::Pit::new(),
               keyboard: kb::PS2Keyboard::new(),
               screen: vga::Vga::new(),
-              timer_handlers: Vec::with_capacity(16)}
+              timer_handlers: VecDeque::with_capacity(16)}
+    }
+}
+
+fn pc_outport<T>(port: u16, val: T) {
+    unsafe {
+        llvm_asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
+    }
+}
+
+fn pc_inport<T: Default>(port: u16) -> T {
+    unsafe {
+        let mut val: T;
+        llvm_asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
+        val
     }
 }
 
@@ -77,11 +90,18 @@ impl Machine for Kernel {
 
         self.mach.initialised
     }
+
+    fn debug(msg: &str) {
+        // Blast the debug message straight on the serial port.
+        for b in msg.bytes() {
+            pc_outport(0x3F8 as u16, b);
+        }
+    }
 }
 
 impl<'a> TimerHandlers for Kernel {
     fn register_timer(&mut self, f: extern "Rust" fn(usize)) {
-        self.mach.state.timer_handlers.push(f);
+        self.mach.state.timer_handlers.push_back(f);
     }
 
     fn timer_fired(&mut self, ms: usize) {
@@ -94,28 +114,22 @@ impl<'a> TimerHandlers for Kernel {
 
 impl<'a> IoPort for Kernel {
     fn outport<T>(&self, port: u16, val: T) {
-        unsafe {
-            llvm_asm!("out $0, $1" :: "{ax}" (val), "N{dx}" (port));
-        }
+        pc_outport(port, val)
     }
 
     fn inport<T: Default>(&self, port: u16) -> T {
-        unsafe {
-            let mut val: T;
-            llvm_asm!("in $1, $0" : "={ax}" (val) : "N{dx}" (port));
-            val
-        }
+        pc_inport(port)
     }
 }
 
 impl<'a> Mmio for Kernel {
     fn mmio_write<T>(&self, address: u32, val: T) {
         let ptr = address as *mut T;
-        unsafe { std::ptr::write(ptr, val) };
+        unsafe { core::ptr::write(ptr, val) };
     }
 
     fn mmio_read<T>(&self, address: u32) -> T {
         let ptr = address as *const T;
-        unsafe { std::ptr::read(ptr) }
+        unsafe { core::ptr::read(ptr) }
     }
 }

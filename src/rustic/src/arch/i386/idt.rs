@@ -14,7 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::util::sync::Spinlock;
 
@@ -116,7 +116,7 @@ impl IdtRegister {
     const fn new(table: *const IdtTable) -> IdtRegister {
         IdtRegister {
             addr: table,
-            limit: (std::mem::size_of::<IdtTable>() + 1) as u16,
+            limit: (core::mem::size_of::<IdtTable>() + 1) as u16,
         }
     }
 }

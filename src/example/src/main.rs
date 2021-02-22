@@ -15,22 +15,23 @@
  */
 #![feature(llvm_asm)]
 #![feature(globs)]
-#![feature(restricted_std)]
 
 #![no_main]
+#![no_std]
 
-use std::panic;
+extern crate alloc;
 
 use rustic::{Kernel, Idle};
 
 use rustic::arch;
 use rustic::mach;
 
-use rustic::arch::{Architecture, Threads};
-use rustic::mach::{Keyboard, Screen, TimerHandlers, Serial};
+use rustic::arch::{Architecture, Threads, ThreadSpawn};
+use rustic::mach::{Keyboard, Screen, TimerHandlers, Serial, Machine};
 use rustic::util;
 
-use std::sync::Arc;
+use alloc::sync::Arc;
+use alloc::boxed::Box;
 use util::sync::Spinlock;
 
 static mut global_ticks: usize = 0;
@@ -109,34 +110,28 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
     // Test serial port.
     kernel.serial_write("This is on the serial port, awesome!\n");
 
-    // Now move into concurrency - we need to reduce the scope of each lock
+    // Test concurrency
     let mut cloned_kernel = Arc::clone(&locked_kernel);
-    kernel.spawn(move || {
-        let guard = cloned_kernel.lock().unwrap();
-        guard.serial_write("This is a thread using the serial port, awesome!\n");
-        drop(guard);
-
-        loop { Kernel::reschedule(&cloned_kernel) };
-    });
-
-    let mut cloned_kernel = Arc::clone(&locked_kernel);
-    kernel.spawn(move || {
+    kernel.spawn_thread(move || {
         let guard = cloned_kernel.lock().unwrap();
         guard.serial_write("This is ANOTHER thread using the serial port, awesome!\n");
         drop(guard);
 
-        loop { Kernel::reschedule(&cloned_kernel) };
+        loop { Kernel::reschedule(Arc::clone(&cloned_kernel)) };
     });
 
-    kernel.serial_write("About to drop!\n");
-    drop(kernel);
+    let mut cloned_kernel = Arc::clone(&locked_kernel);
+    kernel.spawn_thread(move || {
+        let guard = cloned_kernel.lock().unwrap();
+        guard.serial_write("This is a thread using the serial port, awesome!\n");
+        drop(guard);
 
-    let kernel = locked_kernel.lock().unwrap();
-    kernel.serial_write("Drop then reacquire works!\n");
+        loop { Kernel::reschedule(Arc::clone(&cloned_kernel)) };
+    });
+
     drop(kernel);
 
     loop {
-        Kernel::reschedule(&locked_kernel);
-        // Kernel::idle();
+        Kernel::reschedule(Arc::clone(&locked_kernel));
     }
 }

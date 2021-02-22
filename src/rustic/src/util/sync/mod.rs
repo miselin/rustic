@@ -14,16 +14,35 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-use std::cell::UnsafeCell;
-use std::sync::{TryLockResult, TryLockError, LockResult};
-use std::sync::atomic;
-use std::sync::atomic::AtomicBool;
-use std::ops::{Deref, DerefMut};
+// Some parts of this file are based on the equivalents (e.g. Mutex) in the
+// Rust standard library.
+
+use core::cell::UnsafeCell;
+use core::sync::atomic;
+use core::sync::atomic::AtomicBool;
+use core::ops::{Deref, DerefMut};
+use core::fmt;
+
+use crate::Kernel;
+use crate::mach::Machine;
 
 pub struct Spinlock<T: ?Sized> {
     atom: AtomicBool,
     data: UnsafeCell<T>
 }
+
+pub struct PoisonError<T> {
+    guard: T
+}
+
+pub enum TryLockError<T> {
+    Poisoned(PoisonError<T>),
+    WouldBlock,
+}
+
+pub type TryLockResult<Guard> = Result<Guard, TryLockError<Guard>>;
+
+pub type LockResult<Guard> = Result<Guard, PoisonError<Guard>>;
 
 #[must_use = "if unused the Spinlock will immediately unlock"]
 pub struct SpinlockGuard<'a, T: ?Sized + 'a> {
@@ -55,9 +74,16 @@ impl<T: ?Sized> Spinlock<T> {
                         Ok(_) => break,
                         // Failed, might have already acquired by someone else in the meantime.
                         Err(_) => {
-                            std::hint::spin_loop()
+                            core::hint::spin_loop()
                         },
                     }
+                } else {
+                    // TODO: this is not a deadlock if we have multiple CPU cores active
+                    // (but Rustic doesn't support that yet)
+
+                    // Nothing else can unlock the lock if we're trying to
+                    // acquire here - deadlock.
+                    panic!("Spinlock deadlock: lock already acquired: {:p}", &self.atom);
                 }
             }
 
@@ -117,6 +143,27 @@ impl<T: ?Sized> Drop for SpinlockGuard<'_, T> {
                 // unsuccessful, retry
                 Err(_) => {}
             }
+        }
+    }
+}
+
+impl<T> From<PoisonError<T>> for TryLockError<T> {
+    fn from(err: PoisonError<T>) -> TryLockError<T> {
+        TryLockError::Poisoned(err)
+    }
+}
+
+impl<T> fmt::Debug for PoisonError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        "PoisonError { inner: .. }".fmt(f)
+    }
+}
+
+impl<T> fmt::Debug for TryLockError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            TryLockError::Poisoned(..) => "Poisoned(..)".fmt(f),
+            TryLockError::WouldBlock => "WouldBlock".fmt(f),
         }
     }
 }

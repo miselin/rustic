@@ -17,11 +17,14 @@
 #![feature(llvm_asm)]
 #![feature(lang_items)]
 #![feature(rustc_private)]
-#![feature(restricted_std)]
 #![feature(negative_impls)]
+#![feature(alloc_error_handler)]
 #![allow(dead_code)]
 
 #![no_main]
+#![no_std]
+
+extern crate alloc;
 
 // Publish the main things users care about.
 pub use mach::{Machine, TimerHandlers, Mmio, Gpio, IoPort, IrqHandler, Serial};
@@ -36,8 +39,33 @@ pub mod mach;
 // Pull in utils library.
 pub mod util;
 
-use std::sync::Arc;
+use alloc::format;
+use alloc::sync::Arc;
+use core::panic::PanicInfo;
+use core::fmt::{Write, Error};
 use util::sync::Spinlock;
+
+struct Debug {
+}
+
+impl Write for Debug {
+    fn write_str(&mut self, s: &str) -> Result<(), Error> {
+        Kernel::debug(s);
+        Ok(())
+    }
+}
+
+#[alloc_error_handler]
+fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
+    panic!("allocation error: {:?}", layout)
+}
+
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    let mut v = Debug{};
+    core::fmt::write(&mut v, format_args!("panic: {}", info));
+    loop {}
+}
 
 pub struct Kernel {
     mach: mach::MachineState,
@@ -73,14 +101,5 @@ impl Kernel {
         self.set_interrupts(true);
 
         Arc::new(Spinlock::new(self))
-    }
-
-    pub fn spawn<F>(&mut self, f: F)
-    where
-        F: FnMut(),
-        F: Send,
-        F: 'static
-    {
-        self.spawn_thread(f);
     }
 }
