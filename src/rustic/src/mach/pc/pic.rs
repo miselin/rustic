@@ -15,33 +15,36 @@
  */
 
 use core::sync::atomic;
+use core::sync::atomic::Ordering;
 use alloc::sync::Arc;
 use alloc::boxed::Box;
 
 use crate::util::sync::Spinlock;
 
-use crate::arch::{Architecture, TrapHandler};
+use crate::arch::{Architecture, TrapHandler, ThreadSpawn, Threads};
 
 use crate::mach::{IoPort, IrqController, IrqHandler, IrqRegister, Machine, Serial};
 
 use crate::Kernel;
 
+#[derive(Copy, Clone)]
 struct PicIrqHandler {
-    f: Box<dyn FnMut(usize) + Send>,
+    f: extern "Rust" fn(usize),
     level: bool,
 }
 
 pub static REMAP_BASE: usize = 0x20;
 
-static mut ACTIVE_IRQS: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
-
 pub struct Pic {
     irqhandlers: [Option<PicIrqHandler>; 16],
+    active_irqs: atomic::AtomicUsize
 }
 
 impl Pic {
     pub fn new() -> Pic {
-        Pic{irqhandlers: [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None]}
+        Pic{
+            irqhandlers: [None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None],
+            active_irqs: atomic::AtomicUsize::new(0)}
     }
 }
 
@@ -59,6 +62,57 @@ impl IrqController for Kernel {
         // Mask all, machine layer will call our enable() when an IRQ is registered.
         self.outport(0x21, 0xFFu8);
         self.outport(0xA1, 0xFFu8);
+
+        // Spin up IRQ handling thread.
+        // We have the IRQ handler set a flag and mask the IRQ - that's very
+        // fast and easy to do in that context. Then this thread handles the
+        // reading of that flag to trigger the actual IRQ handlers and unmask.
+        self.spawn_thread(|| {
+            loop {
+                match Kernel::optional_kernel() {
+                    Some(kernel_locked) => {
+                        // Grab what we need with the lock held and then run the rest without.
+                        let kernel = kernel_locked.lock().unwrap();
+                        let active = kernel.mach.state.irq_ctlr.active_irqs.swap(0, Ordering::SeqCst);
+                        let handlers = kernel.mach.state.irq_ctlr.irqhandlers.clone();
+                        drop(kernel);
+
+                        for irqnum in 0..16 {
+                            if (active & (1 << irqnum)) == 0 {
+                                continue;
+                            }
+
+                            // Call handlers - and run the EOI as well.
+                            // We have to do this here now that we're actually actioning the IRQ.
+                            for h in handlers.iter() {
+                                match h {
+                                    Some (handler) => {
+                                        if handler.level == false {
+                                            kernel_locked.lock().unwrap().eoi(irqnum);
+                                        }
+
+                                        (handler.f)(irqnum);
+
+                                        if handler.level == true {
+                                            kernel_locked.lock().unwrap().eoi(irqnum);
+                                        }
+
+                                        // Unmask the IRQ now that we've handled it.
+                                        kernel_locked.lock().unwrap().enable_irq(irqnum);
+                                    },
+                                    None => {}
+                                }
+                            }
+                        }
+
+                        Kernel::reschedule(Arc::clone(&kernel_locked));
+                    },
+                    None => {
+                        panic!("somehow managed to run a thread before the kernel is ready")
+                    }
+                };
+            }
+        });
     }
 
     fn enable_irq(&self, irq: usize) {
@@ -93,17 +147,18 @@ impl IrqController for Kernel {
     }
 }
 
-impl<F: FnMut(usize) + Send + 'static> IrqRegister<F> for Kernel {
-    fn register_irq(&mut self, irq: usize, handler: F, level_trigger: bool) {
-        let irqhandler = PicIrqHandler{f: Box::new(handler), level: level_trigger};
+impl IrqRegister for Kernel {
+    fn register_irq(&mut self, irq: usize, handler: extern "Rust" fn(usize), level_trigger: bool) {
+        let irqhandler = PicIrqHandler{f: handler, level: level_trigger};
         self.mach.state.irq_ctlr.irqhandlers[irq] = Some(irqhandler);
 
         self.register_trap(irq + REMAP_BASE, irq_stub);
+        self.enable_irq(irq);
     }
 }
 
 impl TrapHandler for Kernel {
-    fn trap(&mut self, num: usize) {
+    fn trap(&mut self, num: usize) -> Option<extern "Rust" fn(usize)> {
         let irq_ctlr = &self.mach.state.irq_ctlr;
 
         let irqnum = num - REMAP_BASE;
@@ -119,36 +174,30 @@ impl TrapHandler for Kernel {
         if irqnum == 7 {
             if (isr & (1 << 7)) == 0 {
                 self.serial_write("spurious IRQ 7\n");
-                return;
+                return None;
             }
         } else if irqnum == 15 {
             if (isr & (1 << 15)) == 0 {
                 self.serial_write("spurious IRQ 15\n");
                 self.eoi(7);
-                return;
+                return None;
             }
         }
 
         if (isr & (1 << irqnum)) == 0 {
             self.serial_write("IRQ stub called with no interrupt status\n");
-            return;
+            return None;
         }
 
         // Get the handler we need.
         // TODO: mark as active and let a thread handle the code so we don't
         // spend forever in the IRQ handler running code
         match irq_ctlr.irqhandlers[irqnum] {
-            Some(ref handler) => {
-                if handler.level == false {
-                    self.eoi(irqnum);
-                }
+            Some(_) => {
+                irq_ctlr.active_irqs.fetch_or(1 << irqnum, Ordering::SeqCst);
 
-                Kernel::debug("(would call irq handler)\n");
-                // (handler.f)(irqnum);
-
-                if handler.level == true {
-                    self.eoi(irqnum);
-                }
+                // Mask IRQ until we're done handling it.
+                self.disable_irq(irqnum);
             },
             None => {
                 // Unhandled IRQ, just send the EOI and hope all's well.
@@ -156,6 +205,8 @@ impl TrapHandler for Kernel {
                 self.eoi(irqnum);
             }
         };
+
+        None
     }
 }
 

@@ -35,10 +35,16 @@ pub trait Architecture {
 
     fn register_trap(&mut self, num: usize, f: extern "Rust" fn(usize));
 
+    // TODO: while 'self' is protected by a Spinlock, these are essentially
+    // useless functions as get_interrupts() should always be false and
+    // set_interrupts() can break the critical section.
     fn get_interrupts(&self) -> bool;
     fn set_interrupts(&mut self, state: bool);
-
     fn wait_for_event(&self);
+
+    fn get_interrupts_static() -> bool;
+    fn set_interrupts_static(state: bool);
+    fn wait_for_event_static();
 }
 
 pub trait ThreadSpawn<F> {
@@ -53,7 +59,7 @@ pub trait Threads {
 }
 
 pub trait TrapHandler {
-    fn trap(&mut self, num: usize);
+    fn trap(&mut self, num: usize) -> Option<extern "Rust" fn(usize)>;
 }
 
 pub struct ArchitectureState {

@@ -16,7 +16,11 @@
 
 use crate::util::colour;
 
+use alloc::sync::Arc;
 use alloc::boxed::Box;
+
+use crate::Kernel;
+use crate::util::sync::Spinlock;
 
 #[cfg(feature="plat_pc")]
 mod pc;
@@ -63,8 +67,8 @@ pub trait IrqHandler {
     fn irq(&self, irqnum: usize);
 }
 
-pub trait IrqRegister<F> {
-    fn register_irq(&mut self, irq: usize, handler: F, level_trigger: bool);
+pub trait IrqRegister{
+    fn register_irq(&mut self, irq: usize, handler: extern "Rust" fn(usize), level_trigger: bool);
 }
 
 pub trait Keyboard {
@@ -77,7 +81,7 @@ pub trait HardwareTimer {
 }
 
 pub trait TimerHandlers {
-    fn register_timer(&mut self, f: extern "Rust" fn(usize));
+    fn register_timer(&mut self, f: extern "Rust" fn(&mut Kernel, usize));
     fn timer_fired(&mut self, ticks: usize);
 }
 

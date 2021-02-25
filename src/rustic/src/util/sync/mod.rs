@@ -23,8 +23,12 @@ use core::sync::atomic::AtomicBool;
 use core::ops::{Deref, DerefMut};
 use core::fmt;
 
+use crate::Kernel;
+use crate::arch::Architecture;
+
 pub struct Spinlock<T: ?Sized> {
     atom: AtomicBool,
+    interrupts: AtomicBool,
     data: UnsafeCell<T>
 }
 
@@ -54,13 +58,17 @@ unsafe impl<T: ?Sized + Send> Sync for Spinlock<T> {}
 
 impl<T> Spinlock<T> {
     pub fn new(t: T) -> Spinlock<T> {
-        return Spinlock { atom: AtomicBool::new(false), data: UnsafeCell::new(t) };
+        return Spinlock { atom: AtomicBool::new(false), interrupts: AtomicBool::new(false), data: UnsafeCell::new(t) };
     }
 }
 
 impl<T: ?Sized> Spinlock<T> {
     pub fn lock(&self) -> LockResult<SpinlockGuard<'_, T>> {
         unsafe {
+            // Disable interrupts while we are in the critical section
+            let was = Kernel::get_interrupts_static();
+            Kernel::set_interrupts_static(false);
+
             loop {
                 // We do a single load first, because compare_exchange can be
                 // implemented in a way that stores the current value of the
@@ -84,6 +92,7 @@ impl<T: ?Sized> Spinlock<T> {
                 }
             }
 
+            self.interrupts.store(was, atomic::Ordering::Release);
             SpinlockGuard::new(self)
         }
     }
@@ -134,13 +143,17 @@ impl<T: ?Sized> Drop for SpinlockGuard<'_, T> {
                 panic!("trying to unlock an already unlocked lock");
             }
 
-            match self.lock.atom.compare_exchange(true, false, atomic::Ordering::Acquire, atomic::Ordering::Acquire) {
+            match self.lock.atom.compare_exchange(true, false, atomic::Ordering::Release, atomic::Ordering::Relaxed) {
                 // successful compare & exchange, good to return
                 Ok(_) => break,
                 // unsuccessful, retry
                 Err(_) => {}
             }
         }
+
+        // Restore interrupts now that we are out of the critical section
+        let interrupts = self.lock.interrupts.load(atomic::Ordering::Acquire);
+        Kernel::set_interrupts_static(interrupts);
     }
 }
 

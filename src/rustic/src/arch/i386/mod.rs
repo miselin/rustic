@@ -53,6 +53,7 @@ pub struct State {
     ready_threads: VecDeque<Thread>,
     running_thread: Option<Thread>,
     alive: bool,
+    ints: bool
 }
 
 // External variable in assembly code (not actually a function)
@@ -70,6 +71,7 @@ impl State {
             ready_threads: VecDeque::new(),
             running_thread: None,
             alive: false,
+            ints: false
         }
     }
 }
@@ -111,19 +113,35 @@ impl<'a> Architecture for Kernel {
     }
 
     fn get_interrupts(&self) -> bool {
-        // TODO: write
-        false
+        self.arch.state.ints
+    }
+
+    fn get_interrupts_static() -> bool {
+        let mut result: u32 = 0;
+        unsafe { llvm_asm!("pushf; pop $0" : "=r" (result)) };
+
+        (result & 0x200) == 0x200
     }
 
     fn set_interrupts(&mut self, state: bool) {
-        if state == true {
-            unsafe { llvm_asm!("sti") }
-        } else {
-            unsafe { llvm_asm!("cli") }
+        if state != self.arch.state.ints {
+            Self::set_interrupts_static(state);
+            self.arch.state.ints = state;
+        }
+    }
+
+    fn set_interrupts_static(state: bool) {
+        match state {
+            true => unsafe { llvm_asm!("sti") },
+            false => unsafe { llvm_asm!("cli") }
         }
     }
 
     fn wait_for_event(&self) {
+        unsafe { llvm_asm!("sti; hlt") }
+    }
+
+    fn wait_for_event_static() {
         unsafe { llvm_asm!("sti; hlt") }
     }
 }

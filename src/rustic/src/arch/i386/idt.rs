@@ -107,9 +107,9 @@ impl Idt {
         handlers[index] = InterruptHandler::new(handler);
     }
 
-    fn trap(&self, which: usize) {
+    fn trap(&self, which: usize) -> extern "Rust" fn(usize) {
         let handlers = self.handlers.lock().unwrap();
-        (handlers[which].f)(which);
+        handlers[which].f
     }
 }
 
@@ -147,7 +147,8 @@ impl InterruptHandler {
 #[no_mangle]
 pub extern "C" fn isr_rustentry(which: usize) {
     // Entry point for IRQ - find if we have a handler configured or not.
-    Kernel::kernel().lock().unwrap().arch.state.idt.trap(which);
+    let f = Kernel::kernel().lock().unwrap().arch.state.idt.trap(which);
+    f(which);
 }
 
 fn default_trap(_: usize) {

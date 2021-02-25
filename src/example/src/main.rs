@@ -22,8 +22,8 @@ extern crate alloc;
 
 use rustic::Kernel;
 
-use rustic::arch::{Threads, ThreadSpawn};
-use rustic::mach::{Keyboard, Screen, Serial};
+use rustic::arch::{Architecture, Threads, ThreadSpawn};
+use rustic::mach::{Keyboard, Screen, Serial, TimerHandlers};
 use rustic::util;
 
 use alloc::sync::Arc;
@@ -43,35 +43,33 @@ fn demo_serial(kernel: &Kernel) {
     kernel.serial_write("The serial port supports full UTF-8 - ☃.\n");
 }
 
-/*
-fn ticks(ms: usize) {
+fn ticks(kernel: &mut Kernel, ms: usize) {
     let tick_count = unsafe {
         GLOBAL_TICKS += ms;
         GLOBAL_TICKS
     };
 
-    machine().screen_save_cursor();
-    machine().screen_save_attrib();
-    machine().screen_cursor(machine().screen_cols() - 1, machine().screen_rows() - 1);
-    machine().screen_attrib(util::colour::Colour::White, util::colour::Colour::Black);
+    kernel.screen_save_cursor();
+    kernel.screen_save_attrib();
+    kernel.screen_cursor(kernel.screen_cols() - 1, kernel.screen_rows() - 1);
+    kernel.screen_attrib(util::colour::Colour::White, util::colour::Colour::Black);
 
     if tick_count % 1000 == 0 {
         if tick_count == 4000 {
-            machine().screen_write_char('\\');
+            kernel.screen_write_char('\\');
             unsafe { GLOBAL_TICKS = 0 };
         } else if tick_count == 3000 {
-            machine().screen_write_char('-');
+            kernel.screen_write_char('-');
         } else if tick_count == 2000 {
-            machine().screen_write_char('/');
+            kernel.screen_write_char('/');
         } else if tick_count == 1000 {
-            machine().screen_write_char('|');
+            kernel.screen_write_char('|');
         }
     }
 
-    machine().screen_restore_attrib();
-    machine().screen_restore_cursor();
+    kernel.screen_restore_attrib();
+    kernel.screen_restore_cursor();
 }
-*/
 
 #[no_mangle]
 pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
@@ -91,7 +89,7 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
     demo_serial(&kernel);
 
     // Set up our timer handler.
-    // kernel.machine().register_timer(ticks);
+    kernel.register_timer(ticks);
 
     // Welcome messages.
     //print!("This is an example where you just want to say... ");
@@ -126,5 +124,6 @@ pub extern "C" fn main(_argc: i32, _: *const *const u8) -> ! {
 
     loop {
         Kernel::reschedule(Arc::clone(&locked_kernel));
+        Kernel::wait_for_event_static();
     }
 }

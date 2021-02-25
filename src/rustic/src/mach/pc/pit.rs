@@ -14,8 +14,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use alloc::sync::Arc;
+use alloc::boxed::Box;
+
 use crate::Kernel;
-use crate::mach::{IrqHandler, HardwareTimer, IoPort};
+use crate::mach::{IrqHandler, HardwareTimer, TimerHandlers, IoPort};
+use crate::util::sync::Spinlock;
 
 static BASE_FREQUENCY: usize = 1193180;
 
@@ -51,4 +55,11 @@ impl IrqHandler for Pit {
         // todo
         // kernel_mut().machine_mut().timer_fired(1000 / self.timer_hz);
     }
+}
+
+pub fn timer_irq(_: usize) {
+    let locked_kernel = Kernel::kernel();
+    let mut kernel = locked_kernel.lock().unwrap();
+    let hz = kernel.mach.state.timer.timer_hz;
+    kernel.timer_fired(1000 / hz);
 }

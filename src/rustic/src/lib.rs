@@ -99,15 +99,13 @@ impl Kernel {
         // All done with initial startup.
         kernel.serial_write("Built on the Rustic Framework.\n");
 
-        // Enable IRQs and start up the application.
-        kernel.set_interrupts(true);
-
         let kernel_wrapped = Arc::new(Spinlock::new(kernel));
         let result = Arc::clone(&kernel_wrapped);
 
         unsafe { KERNEL_SINGLETON = Some(kernel_wrapped) };
 
-        unsafe { llvm_asm!( "int3" ) };
+        // Enable interrupts without touching the locked object itself
+        Kernel::set_interrupts_static(true);
 
         result
     }
@@ -117,6 +115,15 @@ impl Kernel {
             match KERNEL_SINGLETON {
                 Some(ref v) => Arc::clone(v),
                 None => panic!("kernel is not initialized yet")
+            }
+        }
+    }
+
+    pub fn optional_kernel() -> Option<Arc<Spinlock<Kernel>>> {
+        unsafe {
+            match KERNEL_SINGLETON {
+                Some(ref v) => Some(Arc::clone(v)),
+                None => None
             }
         }
     }

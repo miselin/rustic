@@ -14,10 +14,13 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+use alloc::sync::Arc;
+use alloc::boxed::Box;
 use core::default::Default;
 
-use crate::mach::{IrqController, HardwareTimer, Machine, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
+use crate::mach::{IrqController, IrqRegister, IrqHandler, HardwareTimer, Machine, TimerHandlers, Keyboard, IoPort, Serial, Mmio};
 use crate::mach::parity::Parity;
+use crate::util::sync::Spinlock;
 
 use alloc::collections::VecDeque;
 
@@ -34,7 +37,7 @@ pub struct State {
     timer: pit::Pit,
     keyboard: kb::PS2Keyboard,
     screen: vga::Vga,
-    timer_handlers: VecDeque<extern "Rust" fn(usize)>,
+    timer_handlers: VecDeque<extern "Rust" fn(&mut Kernel, usize)>,
 }
 
 impl State {
@@ -67,20 +70,17 @@ impl Machine for Kernel {
         self.serial_config(115200, 8, Parity::NoParity, 1);
 
         // Bring up the PIC.
-        self.mach.state.irq_ctlr = pic::Pic::new();
         self.init_irqs();
 
         // Bring up the PIT at 100hz.
-        self.mach.state.timer = pit::Pit::new();
         self.init_timers(100);
 
         // Bring up the keyboard.
-        self.mach.state.keyboard = kb::PS2Keyboard::new();
         self.kb_init();
 
         // Register the PIT and keyboard IRQs.
         // TODO: fix these borrows
-        //self.register_irq(pit::Pit::irq_num(), &self.mach.state.timer, true);
+        self.register_irq(pit::Pit::irq_num(), pit::timer_irq, true);
         //self.register_irq(kb::PS2Keyboard::irq_num(), &self.mach.state.keyboard, true);
 
         // Set up the VGA screen.
@@ -99,20 +99,20 @@ impl Machine for Kernel {
     }
 }
 
-impl<'a> TimerHandlers for Kernel {
-    fn register_timer(&mut self, f: extern "Rust" fn(usize)) {
+impl TimerHandlers for Kernel {
+    fn register_timer(&mut self, f: extern "Rust" fn(&mut Kernel, usize)) {
         self.mach.state.timer_handlers.push_back(f);
     }
 
     fn timer_fired(&mut self, ms: usize) {
-        for h in self.mach.state.timer_handlers.iter() {
+        for h in self.mach.state.timer_handlers.clone().iter() {
             let handler = *h;
-            handler(ms);
+            handler(self, ms);
         }
     }
 }
 
-impl<'a> IoPort for Kernel {
+impl IoPort for Kernel {
     fn outport<T>(&self, port: u16, val: T) {
         pc_outport(port, val)
     }
@@ -122,7 +122,7 @@ impl<'a> IoPort for Kernel {
     }
 }
 
-impl<'a> Mmio for Kernel {
+impl Mmio for Kernel {
     fn mmio_write<T>(&self, address: u32, val: T) {
         let ptr = address as *mut T;
         unsafe { core::ptr::write(ptr, val) };
